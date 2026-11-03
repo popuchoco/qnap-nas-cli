@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from qnap_nas_cli.incident import response_plan, scan_ransomware_artifacts, write_evidence_bundle
+from qnap_nas_cli.incident import MAX_DEPTH, response_plan, scan_ransomware_artifacts, write_evidence_bundle
 
 
 class FakeFileStation:
@@ -59,7 +59,33 @@ class IncidentTest(unittest.TestCase):
         result = scan_ransomware_artifacts(FakeFileStation({"/Public": entries}), max_items=5)
         self.assertEqual(result["coverage"]["entries_scanned"], 5)
         self.assertTrue(result["coverage"]["truncated"])
+        self.assertIn("item_limit", result["coverage"]["truncation_reasons"])
         self.assertEqual(result["coverage"]["status"], "partial")
+
+    def test_depth_limit_is_explicitly_reported_as_truncated(self):
+        entries = {}
+        parent = "/Public"
+        for index in range(MAX_DEPTH + 1):
+            child = "nested-{}".format(index)
+            entries[parent] = [{"filename": child, "isfolder": 1}]
+            parent = parent + "/" + child
+        entries[parent] = [{"filename": "beyond-depth.txt", "isfolder": 0}]
+
+        result = scan_ransomware_artifacts(FakeFileStation(entries))
+        coverage = result["coverage"]
+        self.assertEqual(coverage["status"], "partial")
+        self.assertTrue(coverage["truncated"])
+        self.assertTrue(coverage["depth_limited"])
+        self.assertIn("depth_limit", coverage["truncation_reasons"])
+
+    def test_archive_cluster_alone_is_indeterminate_and_requires_corroboration(self):
+        entries = [{"filename": "backup-{}.7z".format(index), "isfolder": 0} for index in range(10)]
+        result = scan_ransomware_artifacts(FakeFileStation({"/Public": entries}))
+        archive_indicator = next(item for item in result["indicators"] if item["code"] == "qlocker_archive_cluster")
+        self.assertEqual(result["assessment"], "indeterminate")
+        self.assertEqual(archive_indicator["confidence"], "low")
+        self.assertTrue(archive_indicator["requires_corroboration"])
+        self.assertIn("單獨不升級", archive_indicator["interpretation"])
 
     def test_paged_file_station_listing_reaches_reported_total(self):
         rows = [{"filename": "file-{}.txt".format(i), "isfolder": 0} for i in range(250)]

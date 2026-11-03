@@ -10,15 +10,16 @@ This document distinguishes **device health**, **known indicators**, and **proof
 4. **Apply:** execute one operation at a time through a reviewed adapter. Recheck device identity, preconditions and before state immediately before the write. Stop on any mismatch or error; don't silently retry or continue to the next operation.
 5. **Verify:** re-read through an independent observation where possible, compare with the desired state, emit an audit record and rerun health. A failed verification produces `partial_failure` and recovery guidance, never a success result.
 
-`remediation.py` implements this contract and has fake-adapter tests for confirmation, state drift, readback and stop-on-failure. No real QTS action is registered, so CLI plans currently have `status: refused`; `repair apply` cannot change a NAS. A concrete adapter becomes eligible only after a reviewed QTS API/SSH contract, live device test on the named model/firmware, idempotency analysis, failure/recovery exercise and tests.
+`remediation.py` implements this contract and has fake-adapter tests for confirmation, state drift, readback and stop-on-failure. No real QTS action is registered, so CLI plans currently have `status: refused`; `repair apply` cannot change a NAS. Every future mutation adapter must pass explicit gates before registration: a reviewed QTS API/SSH and dry-run contract for the named model/firmware; idempotency analysis; concrete failure and recovery steps; live tests including failure/readback cases; and confirmation of a second administrator plus an independent recovery/management path. These are required in addition to the plan/apply confirmation flow, not substitutes for it.
 
 ## Suspected ransomware: scan → contain → preserve → rescue/recover
 
 ### Scan
 
-`qts incident scan` walks File Station-visible shares using `get_tree` and paged `get_list` from QNAP's [File Station HTTP API v5](https://download.qnap.com/dev/QNAP_QTS_File_Station_API_v5.pdf), with a hard item limit and a depth limit. It searches names only for campaign-specific indicators:
+`qts incident scan` walks File Station-visible shares using `get_tree` and paged `get_list` from QNAP's [File Station HTTP API v5](https://download.qnap.com/dev/QNAP_QTS_File_Station_API_v5.pdf), with a hard item limit and a depth limit. The report exposes `coverage.truncated`, `coverage.depth_limited`, and `coverage.truncation_reasons`; `coverage.status: partial` or either limit flag means the inventory is incomplete and a missing indicator is not negative evidence. It searches names only for campaign-specific indicators:
 
-- `!!!READ_ME.txt` and 10 or more `.7z` names as Qlocker-related evidence (the archive cluster alone remains low confidence).
+- `!!!READ_ME.txt` as a Qlocker-related indicator.
+- 10 or more `.7z` names as a low-confidence Qlocker-like archive cluster. Large `.7z` groups can be ordinary backups; the cluster alone does not raise the assessment to `suspected` and requires corroboration such as `!!!READ_ME.txt`, DeadBolt indicators, QTS alerts, or other independent evidence.
 - `.deadbolt` as DeadBolt-related evidence.
 
 QNAP documents Qlocker archive/note behavior and DeadBolt's extension in its [Qlocker response](https://www.qnap.com/static/landing/2021/qlocker/response/en/) and [DeadBolt advisory QSA-22-02](https://www.qnap.com/en-us/security-advisory/qsa-22-02). A `.7z` alone is common and low-confidence. The tool does not inspect file content, process behavior, logs, credentials, deleted files, or inaccessible paths. A hit is **suspected**, not confirmed; no hit is **indeterminate**, never clean.
@@ -37,4 +38,4 @@ QNAP documents Qlocker archive/note behavior and DeadBolt's extension in its [Ql
 
 ## Expansion gates
 
-The next safe detection step is read-only process/log evidence with firmware fixtures and explicit coverage, then correlation of file-change rates, process identity/start time and QTS alerts. Automated process suspension, network isolation, package stop, ransomware cleanup and backup restore each require a separate reviewed adapter and a two-step plan/apply gate; they must not be inferred from a filename hit.
+The next safe detection step is read-only process/log evidence with firmware fixtures and explicit coverage, then correlation of file-change rates, process identity/start time and QTS alerts. The current evidence capsule contains only the structured report and hash manifest; it is not full forensic acquisition and does not collect raw logs, volatile memory, packet captures, or file contents. Automated process suspension, network isolation, package stop, ransomware cleanup and backup restore each require a separate reviewed adapter and a two-step plan/apply gate; they must not be inferred from a filename hit.

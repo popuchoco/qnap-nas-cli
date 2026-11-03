@@ -32,7 +32,7 @@
 - `services`：唯讀觀察 Container Station／Tailscale QPKG metadata，不把 `Status=complete` 誤稱為 daemon 正常運行。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
-- `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation。
+- `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
 - `incident contain`：由 report 產生人工網路隔離／取證清單；不改 NAS 防火牆或停止程序。
 - `incident evidence`：保存 report 到新的本機目錄並寫 SHA-256 manifest；不宣稱包含 NAS 原始日誌。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
@@ -167,7 +167,7 @@ qts fixture validate qts-dump-ts431k --json
 
 ## Incident / repair 工作流（目前為受限 v1）
 
-`qts incident scan` 使用 QNAP File Station API 的 `get_tree`／`get_list` 做 bounded read-only inventory：最多掃描 100,000 個項目、深度 12；預設 10,000。僅掃描登入帳號可見的共享資料夾名稱，不讀內容、不掃程序／行為／系統日誌，也不代表完整 filesystem coverage。已知規則包含 `.deadbolt`、Qlocker 的 `!!!READ_ME.txt`，以及大量 `.7z` 的低信心群聚；Qlocker 曾以 `.7z` 加密/封存並生成 ransom note，DeadBolt 使用 `.deadbolt` 副檔名。無命中永遠回 `indeterminate`，不回 `clean`；命中代表疑似而非確診。官方事件說明、公告與 API 規格列於下方參考資料。
+`qts incident scan` 使用 QNAP File Station API 的 `get_tree`／`get_list` 做 bounded read-only inventory：最多掃描 100,000 個項目、深度 12；預設 10,000。僅掃描登入帳號可見的共享資料夾名稱，不讀內容、不掃程序／行為／系統日誌，也不代表完整 filesystem coverage。報告的 `coverage.truncated`、`coverage.depth_limited` 與 `coverage.truncation_reasons` 會明確標示項目數或深度上限造成的覆蓋缺口；`partial`／截斷掃描的無命中尤其不能解讀為乾淨。已知規則包含 `.deadbolt`、Qlocker 的 `!!!READ_ME.txt`，以及大量 `.7z` 的低信心群聚；`.7z` 群聚可能是正常備份，單獨不會升級成 `suspected`，需搭配勒索字條、DeadBolt 指標、QTS 告警或其他獨立異常證據。無命中永遠回 `indeterminate`，不回 `clean`；命中代表疑似而非確診。官方事件說明、公告與 API 規格列於下方參考資料。
 
 應變分工：
 
@@ -183,31 +183,6 @@ qts fixture validate qts-dump-ts431k --json
 - [QTS File Station HTTP API v5（PDF）](https://download.qnap.com/dev/QNAP_QTS_File_Station_API_v5.pdf)：`incident scan` 使用之 File Station API 契約參考。
 
 一般 `repair plan/apply` 的 code contract 已定義：計畫有 15 分鐘有效期與 hash `plan_id`；apply 要求逐字確認、裝置身分相同、前置條件已核對，每一步重新讀取 before state，操作後 readback 驗證，失敗即停止後續步驟。CLI 目前只輸出 `refused` plan，因為 QNAP 寫入 API/SSH 動作尚未通過實機測試；因此這不是可以改 NAS 的功能預告，而是安全框架先行。
-
-## 架構參考與設計來源
-
-本專案不是把 Synology API 名稱替換成 QNAP 名稱，而是重新實作 QTS 專用協定層。
-
-### `synology-nas-cli`
-
-[akari-sora/synology-nas-cli](https://github.com/akari-sora/synology-nas-cli) 提供以下產品與架構構想：
-
-- Python 標準函式庫即可執行，讓工具能在 NAS 或管理電腦上運作。
-- 同一核心同時服務人類 CLI、JSON 自動化與 stdio MCP。
-- 稽核與修復分離；危險操作先產生計畫並要求明確確認。
-- 設定、credential source、TLS、相容性 dump 與 agent 安全邊界是產品的一部分。
-
-該專案使用 Synology DSM 7 Web API；本專案沒有複製其 DSM endpoint、修復命令或勒索軟體判斷。兩者皆採 MIT License，若日後直接移植程式碼，將在來源檔保留原作者 copyright 與授權聲明。
-
-### QNAP 官方介面
-
-- QTS Authentication API v5.1：`authLogin.cgi`、SID／qtoken、`security_code` 與 2-step verification 契約。
-- QTS File Station HTTP API v5：檔案、分享與部分 Storage 資訊的公開契約。
-- QTS Web UI CGI：`manaRequest.cgi` 與 `disk_manage.cgi` 提供型號、負載、介面與儲存觀察值，但欄位跨韌體並非完整穩定公開 API，因此解析器採容錯設計並保留 `unknown`。
-
-### 現有 QNAP 工具研究
-
-[rvben/qnap-cli](https://github.com/rvben/qnap-cli) 的公開實作與相容性 fixture 協助確認 QTS 5.1/5.2 常見 CGI 請求、登入 form、sysinfo 與 storage response 形狀。本專案沒有複製其 Rust 原始碼；它偏向完整檔案管理，本專案則聚焦健康診斷、事件證據、Tailscale／Container Station 維運與 AI agent 的安全操作模型。
 
 ## 內部架構
 

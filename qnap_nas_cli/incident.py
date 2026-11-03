@@ -86,6 +86,15 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
     folders_scanned = 0
     issues = []  # type: List[Dict[str, str]]
     truncated = False
+    depth_limited = False
+    truncation_reasons = []  # type: List[str]
+
+    def mark_truncated(reason: str) -> None:
+        nonlocal truncated
+        truncated = True
+        if reason not in truncation_reasons:
+            truncation_reasons.append(reason)
+
     deadbolt_examples = []  # type: List[str]
     qlocker_note_examples = []  # type: List[str]
     archive_examples = []  # type: List[str]
@@ -137,7 +146,7 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
 
             for entry in entries:
                 if scanned >= max_items:
-                    truncated = True
+                    mark_truncated("item_limit")
                     break
                 scanned += 1
                 name = _filename(entry.get("filename"))
@@ -148,6 +157,8 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
                 is_folder = entry.get("isfolder") is True or entry.get("isfolder") in (1, "1")
                 if is_folder:
                     if depth >= MAX_DEPTH:
+                        depth_limited = True
+                        mark_truncated("depth_limit")
                         issues.append({"source": full_path, "error": "max_depth_reached"})
                     elif full_path not in seen_paths:
                         seen_paths.add(full_path)
@@ -179,18 +190,19 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
             if scanned >= max_items:
                 # If the provider returned its total and it equals the number
                 # seen, this cap is exact rather than truncated.
-                truncated = total is None or start + len(entries) < total
+                if total is None or start + len(entries) < total:
+                    mark_truncated("item_limit")
                 break
             if len(entries) < limit and total is not None:
                 issues.append({"source": folder_path, "error": "short_page_before_reported_total"})
                 break
             start += len(entries)
 
-        if scanned >= max_items and queue:
-            truncated = True
-
     if queue:
-        truncated = True
+        if scanned >= max_items:
+            mark_truncated("item_limit")
+        elif folders_scanned >= MAX_FOLDERS:
+            mark_truncated("folder_limit")
 
     indicators = []
     if deadbolt_examples:
@@ -198,7 +210,11 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
     if qlocker_note_examples:
         indicators.append({"code": "qlocker_ransom_note", "family": "Qlocker", "confidence": "high", "count": qlocker_note_count, "examples": qlocker_note_examples})
     if archive_count >= 10:
-        indicators.append({"code": "qlocker_archive_cluster", "family": "Qlocker-like", "confidence": "low", "count": archive_count, "examples": archive_examples})
+        indicators.append({
+            "code": "qlocker_archive_cluster", "family": "Qlocker-like", "confidence": "low",
+            "count": archive_count, "examples": archive_examples, "requires_corroboration": True,
+            "interpretation": "低信心：大量 .7z 也可能是正常備份；單獨不升級為 suspected，需與 !!!READ_ME.txt、DeadBolt 指標、QTS 告警或其他獨立異常證據交叉比對。",
+        })
 
     assessment = "suspected" if any(item["confidence"] in ("high", "medium") for item in indicators) else "indeterminate"
     if not indicators and archive_count:
@@ -212,11 +228,12 @@ def scan_ransomware_artifacts(client: Any, max_items: int = DEFAULT_MAX_ITEMS) -
             "shares_seen": len(shares), "folders_scanned": folders_scanned,
             "entries_scanned": scanned, "files_scanned": files_scanned,
             "max_items": max_items, "max_depth": MAX_DEPTH,
-            "truncated": truncated, "issues": issues,
+            "truncated": truncated, "depth_limited": depth_limited,
+            "truncation_reasons": truncation_reasons, "issues": issues,
             "scope": "File Station visible shared folders and names only; not process behavior, file contents, QTS logs, inaccessible paths, or all ransomware families",
         },
         "indicators": indicators,
-        "note": "沒有命中只代表此有限名稱規則未命中；永遠不等同確認 NAS 無感染。",
+        "note": "沒有命中只代表此有限名稱規則未命中；永遠不等同確認 NAS 無感染。大量 .7z 群聚是低信心線索，單獨不會升級為 suspected，需其他證據佐證。",
     }
 
 
@@ -226,7 +243,8 @@ def _empty_scan(max_items: int, code: str, message: str) -> Dict[str, Any]:
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "coverage": {"status": "partial", "shares_seen": 0, "folders_scanned": 0, "entries_scanned": 0,
                      "files_scanned": 0, "max_items": max_items, "max_depth": MAX_DEPTH,
-                     "truncated": False, "issues": [{"source": code, "error": message}],
+                     "truncated": False, "depth_limited": False, "truncation_reasons": [],
+                     "issues": [{"source": code, "error": message}],
                      "scope": "File Station scan did not obtain a complete visible-share inventory"},
         "indicators": [],
         "note": "沒有命中只代表此有限名稱規則未命中；永遠不等同確認 NAS 無感染。",
