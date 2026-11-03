@@ -73,6 +73,14 @@ def _password() -> str:
     return getpass.getpass("QTS password: ")
 
 
+def _security_code() -> Optional[str]:
+    value = os.environ.get("QTS_SECURITY_CODE")
+    if value is None:
+        return None
+    value = value.replace(" ", "").strip()
+    return value or None
+
+
 def _print(value: Any, json_output: bool) -> None:
     if json_output:
         print(json.dumps(value, ensure_ascii=False, indent=2))
@@ -135,7 +143,7 @@ def main(argv: Optional[list] = None) -> int:
             "network": network,
         }
         with QtsClient(config) as client:
-            client.login(_password())
+            client.login(_password(), _security_code())
             if args.command == "whoami":
                 data = sysinfo(client)
                 value = {"username": config.username, "hostname": data.get("hostname"), "model": data.get("model"), "origin": config.origin}

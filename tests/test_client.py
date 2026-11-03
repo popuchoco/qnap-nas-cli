@@ -1,6 +1,7 @@
 import base64
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
@@ -62,6 +63,20 @@ class ClientTest(unittest.TestCase):
             self.client().login("wrong")
         self.assertIn("errorValue=6", str(caught.exception))
         self.assertNotIn("wrong", str(caught.exception))
+
+    def test_two_factor_requirement_and_security_code(self):
+        needs_2fa = b"<QDocRoot><authPassed>0</authPassed><need_2_step_verification>1</need_2_step_verification></QDocRoot>"
+        success = b"<QDocRoot><authPassed>1</authPassed><authSid>twofactor</authSid></QDocRoot>"
+        client = self.client()
+        with patch.object(client, "_open", return_value=needs_2fa):
+            with self.assertRaises(AuthenticationError) as caught:
+                client.login("secret")
+        self.assertIn("2FA", str(caught.exception))
+        with patch.object(client, "_open", return_value=success) as opened:
+            self.assertEqual(client.login("secret", "123456"), "twofactor")
+        fields = parse_qs(opened.call_args.args[0].data.decode("ascii"))
+        self.assertEqual(fields["security_code"], ["123456"])
+        self.assertEqual(fields["dont_verify_2sv_again"], ["0"])
 
 
 if __name__ == "__main__":

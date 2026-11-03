@@ -17,6 +17,16 @@ class FakeClient:
 
 
 class CommandsTest(unittest.TestCase):
+    def test_reviewed_ts431k_fixture(self):
+        fixture = Path(__file__).parent / "fixtures" / "ts431k-qts-5.2.8-build-20251216"
+        result = validate_dump(fixture)
+        self.assertTrue(result["valid"])
+        self.assertEqual(result["observations"]["system"]["model"], "TS-X41")
+        disks = result["observations"]["storage"]["disks"]
+        self.assertEqual([disk["disk"] for disk in disks], ["1", "2", "3", "4"])
+        self.assertEqual(disks[1]["model"], "ST2000VN000-1HJ164")
+        self.assertEqual(disks[1]["smart"], "Normal")
+
     def test_health_reports_observations_without_claiming_repair(self):
         report = health(FakeClient())
         codes = {item["code"] for item in report["findings"]}

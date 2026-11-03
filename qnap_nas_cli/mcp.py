@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from typing import Any, Callable, Dict
 
@@ -22,7 +23,7 @@ def _web_call(config: Config, operation: Callable[[QtsClient], Dict[str, Any]]) 
     if not password:
         raise QtsError("MCP 模式需要 QTS_PASSWORD 環境變數")
     with QtsClient(config) as client:
-        client.login(password)
+        client.login(password, os.environ.get("QTS_SECURITY_CODE") or None)
         return operation(client)
 
 

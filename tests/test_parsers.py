@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from qnap_nas_cli.parsers import parse_network, parse_storage, parse_system
+from qnap_nas_cli.parsers import merge_storage, parse_network, parse_storage, parse_system
 from qnap_nas_cli.redaction import redact_xml, redact_value
 
 
@@ -43,10 +43,33 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(result["volumes"][0]["status_semantics"], "known_bad")
         self.assertEqual(result["disks"][0]["smart"], "Warning")
 
+    def test_flat_sysinfo_disk_observations(self):
+        root = ET.fromstring("""<QDocRoot><disk_num>2</disk_num>
+            <disk_installed1>1</disk_installed1><tempc1>41 C</tempc1><hd_is_ssd1>0</hd_is_ssd1><hd_pd_alias1>HDD1</hd_pd_alias1>
+            <disk_installed2>0</disk_installed2><tempc2>0 C</tempc2><hd_is_ssd2>0</hd_is_ssd2><hd_pd_alias2>HDD2</hd_pd_alias2>
+        </QDocRoot>""")
+        result = parse_storage(root)
+        self.assertEqual(len(result["disks"]), 1)
+        self.assertEqual(result["disks"][0]["disk"], "1")
+        self.assertEqual(result["disks"][0]["temperature_c"], 41)
+        self.assertIsNone(result["disks"][0]["smart"])
+
+    def test_qsmart_records_merge_with_sysinfo_disk(self):
+        smart = parse_storage(ET.fromstring("""<QDocRoot><Disk_Info><entry><HDNo>0:1</HDNo><Model>ST2000</Model><Serial>SECRET</Serial><Health>Warning</Health><Temperature><oC>45</oC></Temperature><Capacity>2 TB</Capacity><hd_is_ssd>0</hd_is_ssd></entry></Disk_Info></QDocRoot>"""))
+        sysinfo = parse_storage(ET.fromstring("<QDocRoot><disk_num>1</disk_num><disk_installed1>1</disk_installed1><tempc1>44</tempc1><hd_pd_alias1>HDD1</hd_pd_alias1></QDocRoot>"))
+        result = merge_storage(smart, sysinfo)
+        self.assertEqual(len(result["disks"]), 1)
+        self.assertEqual(result["disks"][0]["smart"], "Warning")
+        self.assertEqual(result["disks"][0]["alias"], "HDD1")
+        self.assertEqual(result["disks"][0]["locator"], "0:1")
+
     def test_dump_redaction(self):
-        value = redact_xml(b"<QDocRoot><hostname>MYNAS</hostname><eth_ip1>192.168.1.2</eth_ip1><serial_number>ABC</serial_number></QDocRoot>")
+        value = redact_xml(b"<QDocRoot><hostname>MYNAS</hostname><eth_ip1>192.168.1.2</eth_ip1><eth_mask1>255.255.255.0</eth_mask1><eth_mac1>00:11:22:33:44:55</eth_mac1><eth_ipv6_enable>1</eth_ipv6_enable><serial_number>ABC</serial_number></QDocRoot>")
         self.assertNotIn("MYNAS", value)
         self.assertNotIn("192.168.1.2", value)
+        self.assertNotIn("255.255.255.0", value)
+        self.assertNotIn("00:11:22:33:44:55", value)
+        self.assertIn("<eth_ipv6_enable>1</eth_ipv6_enable>", value)
         self.assertNotIn("ABC", value)
 
     def test_nested_redaction(self):

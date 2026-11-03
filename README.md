@@ -5,15 +5,15 @@
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
-目前是 `0.1.1`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
+目前是 `0.1.2`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
 ## 目前狀態
 
 - 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
-- 25 項離線測試、Python bytecode compilation、CLI smoke test 與 wheel build 均已通過。
-- GitHub Actions 已在 Python 3.8、3.12、3.13 完成驗證：[成功的 CI run](https://github.com/popuchoco/qnap-nas-cli/actions/runs/41594356258)。
+- 30 項離線測試、Python bytecode compilation、CLI smoke test與 wheel build 均已通過。
+- GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
-- QTS response parser 目前使用離線 fixture 驗證；TS-431K 實機 dump 與 live smoke test 尚未完成，因此會明確保留 `unknown`，不把缺少欄位誤判為健康。
+- 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA live smoke test，並納入人工審查、已遮蔽的 system／volume／SMART fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
 
 維護者：`popuchoco <p.choco@daum.net>`
 
@@ -23,7 +23,7 @@
 - `doctor`／`whoami`：檢查本機條件並驗證 QTS 登入。
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
 - `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談。
-- `storage`／`disks`／`volumes`：列出 QTS CGI 可觀察到的儲存資料。
+- `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：經過明確設定的免密 SSH 執行固定的 `tailscale status --json`。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
@@ -68,12 +68,15 @@ qts network
 QTS_PASSWORD='...' qts --json health
 QTS_PASSWORD='...' qts mcp
 
+# 啟用 2FA 的帳號：驗證碼只存在當次 process environment
+QTS_PASSWORD='...' QTS_SECURITY_CODE='123456' qts --json health
+
 # 產生已遮蔽的相容性資料
 qts dump qts-dump
 qts fixture validate qts-dump --json
 ```
 
-若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。密碼不接受命令列參數，也不會寫入設定檔。
+若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。密碼與 2FA 驗證碼不接受命令列參數，也不會寫入設定檔。`QTS_SECURITY_CODE` 是短效 TOTP，應由秘密管理工具即時注入。
 
 ## MCP
 
@@ -109,7 +112,9 @@ MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 
 已知異常放在 `findings`；資料不足放在 `unknowns`。兩者不互相替代。原始 `status_code` 仍保留，方便用真實 fixture 校準新韌體。
 
-目前 Storage CGI 固定使用 `func=extra_get&extra_vol_index=1`。回應會標記 `source.coverage: unverified`；在真實 NAS dump 尚未與 QTS UI／其他索引對照前，即使觀察到的 Volume 都是 ready，整體 Health 仍為 `indeterminate`，不會宣稱所有 Storage 健康。
+Volume 查詢目前固定使用 `func=extra_get&extra_vol_index=1`，回應仍標記 `source.coverage: unverified`。磁碟則合併 `manaRequest.cgi` 的 bay／溫度與 `qsmart.cgi?func=all_hd_data` 的型號、容量、序號遮蔽值與頂層 Health。TS-431K 實機的 `vol_status=0` 尚未有足夠證據映射成 healthy，因此整體仍為 `indeterminate`。
+
+注意：`qsmart.cgi` 的頂層 `Health=OK/Normal` 不代表所有 SMART attribute、歷史 I/O 錯誤或 QTS 告警都正常。例如實機 HDD2 曾由 QTS UI 報告健康度不佳，但此次頂層欄位為 `Normal`；CLI 不會用它覆蓋或否定較具體的告警。
 
 ## 真實 dump 與 fixture 流程
 
@@ -121,7 +126,7 @@ qts dump qts-dump-ts431k
 qts fixture validate qts-dump-ts431k --json
 ```
 
-`dump` manifest 使用版本化格式並包含同一次 parser validation。提交 fixture 前仍應人工檢查內容；驗證通過只代表結構可解析，不代表 NAS 健康。Repository 不會用手寫 XML 冒充 TS-431K 實機 fixture。
+`dump` v2 會保存 `sysinfo.xml`、`storage.xml`、`smart.xml` 與版本化 manifest。提交 fixture 前仍應人工檢查內容；驗證通過只代表結構可解析，不代表 NAS 健康。已審查的實機資料位於 `tests/fixtures/ts431k-qts-5.2.8-build-20251216`，手寫 XML 只用於 edge cases。
 
 ## 架構參考與設計來源
 
@@ -140,7 +145,7 @@ qts fixture validate qts-dump-ts431k --json
 
 ### QNAP 官方介面
 
-- QTS Authentication API：`authLogin.cgi`、SID／qtoken 與 2-step verification 契約。
+- QTS Authentication API v5.1：`authLogin.cgi`、SID／qtoken、`security_code` 與 2-step verification 契約。
 - QTS File Station HTTP API v5：檔案、分享與部分 Storage 資訊的公開契約。
 - QTS Web UI CGI：`manaRequest.cgi` 與 `disk_manage.cgi` 提供型號、負載、介面與儲存觀察值，但欄位跨韌體並非完整穩定公開 API，因此解析器採容錯設計並保留 `unknown`。
 
@@ -172,7 +177,7 @@ Web 後端適合 QTS 通用資料；SSH 後端只用於 Web API 無法可靠提�
 - 密碼不放 CLI argument、不保存於 JSON config、不寫入錯誤。
 - SID 只存於 process memory，命令結束會嘗試 logout。
 - SSH 使用 `BatchMode=yes`，只執行程式內固定 allowlist。
-- `dump` 預設遮蔽 hostname、序號、介面 IP 與 DNS。
+- `dump` 預設遮蔽 hostname、序號、介面 IP、netmask、MAC 與 DNS。
 - MCP 無通用 `api_call`、shell、刪除或修復工具。
 
 詳見 [SECURITY.md](SECURITY.md) 與 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
@@ -188,8 +193,8 @@ CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 whee
 
 ## Roadmap
 
-1. 以 TS-431K/QTS 5.x 的真實、已人工審查 `qts dump` fixture 固化 system、disk、volume parsing。
-2. 新增原始 SMART 與 RAID `/proc/mdstat` 唯讀 SSH 報告。
+1. 已完成：以 TS-431K/QTS 5.2.8 真實、已人工審查 fixture 固化 system、disk、volume 與 SMART summary parsing。
+2. 新增 SMART attribute 與 RAID `/proc/mdstat` 唯讀 SSH 報告，釐清頂層 `Normal` 與 QTS 詳細告警的差異。
 3. Container Station、Tailscale 與 AdGuard 的狀態／依賴圖。
 4. 具 plan、dry-run、確認、重測與 rescue steps 的受控修復命令。
 5. Webhook 告警、排程健康報告與 Evidence Capsule。

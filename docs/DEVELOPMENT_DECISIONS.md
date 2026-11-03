@@ -31,3 +31,11 @@ Hand-written XML remains useful for edge cases but cannot establish a device con
 ## ADR-008 — MCP requests are stateless per line
 
 Every JSON-RPC line starts with a fresh null request ID. Parse errors use code `-32700`; non-object or malformed requests use `-32600`; invalid params use `-32602`. Notifications do not receive responses, and an error must never inherit an earlier request's ID.
+
+## ADR-009 — QTS 2FA remains ephemeral
+
+QTS 5.x may accept the password phase while withholding a SID and returning `need_2_step_verification=1`. The client supports the documented `security_code` field with `dont_verify_2sv_again=0`; it does not request a persistent bypass token. `QTS_SECURITY_CODE` is process-only and is never written to config, dumps, logs, or fixtures.
+
+## ADR-010 — Storage evidence is merged, not overclaimed
+
+The reviewed TS-431K/QTS 5.2.8 fixture showed that `disk_manage.cgi extra_get` returned a volume row but no disk records, while sysinfo exposed bay temperatures and `qsmart.cgi all_hd_data` exposed model, capacity, serial, and top-level Health. These sources are merged by normalized bay locator. Volume scope and `vol_status=0` remain unknown, and a top-level SMART `Normal` cannot negate a more specific QTS warning.

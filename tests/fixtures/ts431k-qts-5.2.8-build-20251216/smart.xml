@@ -1,0 +1,15 @@
+<QDocRoot version="1.0">
+<authPassed>1</authPassed><model><modelName>TS-X41</modelName><internalModelName>TS-X41</internalModelName><platform>TS-NASARM</platform><platform_ex>ARM_AL</platform_ex><customModelName /><displayModelName>TS-431K</displayModelName><sas_model>0</sas_model><storage_v2>1</storage_v2>
+<encryptfsSupported>1</encryptfsSupported><is_zfs>0</is_zfs><node /><dual_node /></model>
+<firmware><name>QTS</name><version>5.2.8</version><number>3350</number><build>20251216</build><patch>0</patch><buildTime>2025/12/16</buildTime></firmware>
+<rfs_bits>32</rfs_bits><specVersion>1.0</specVersion><hostname>REDACTED</hostname><DemoSiteSuppurt>no</DemoSiteSuppurt><customLogo><customFrontLogo /><customLoginLogo /></customLogo>
+<HDTempWarnT>55</HDTempWarnT><HDTempErrT>60</HDTempErrT><SSDTempWarnT>70</SSDTempWarnT><SSDTempErrT>70</SSDTempErrT><Disk_Info><entry><Disk_Alias>3.5" SATA HDD 1</Disk_Alias><Disk_Status>0</Disk_Status><HDNo>0:1</HDNo><Vendor>WDC WD5000AAKX-22ERMA0 17.01H17</Vendor><Health>OK</Health><Capacity>465.76 GB</Capacity><Temperature><oC>44</oC><oF>111</oF></Temperature>
+<temp_alert>0</temp_alert><LastTestSts /><LastTestType /><LastTestTime /><Model>WD5000AAKX-22ERMA0</Model><Serial>REDACTED</Serial><FirmVersion>17.01H17</FirmVersion><ATAVersion>17.01H17</ATAVersion><ATADescription>17.01H17</ATADescription><hd_is_ssd>0</hd_is_ssd></entry>
+<entry><Disk_Alias>3.5" SATA HDD 2</Disk_Alias><Disk_Status>0</Disk_Status><HDNo>0:2</HDNo><Vendor>Seagate ST2000VN000-1HJ164 SC60</Vendor><Health>Normal</Health><Capacity>1.82 TB</Capacity><Temperature><oC>40</oC><oF>104</oF></Temperature>
+<temp_alert>0</temp_alert><LastTestSts /><LastTestType /><LastTestTime /><Model>ST2000VN000-1HJ164</Model><Serial>REDACTED</Serial><FirmVersion>SC60</FirmVersion><ATAVersion>SC60</ATAVersion><ATADescription>SC60</ATADescription><hd_is_ssd>0</hd_is_ssd></entry>
+<entry><Disk_Alias>3.5" SATA HDD 3</Disk_Alias><Disk_Status>0</Disk_Status><HDNo>0:3</HDNo><Vendor>WDC WD5003ABYZ-011FA0 01.01S03</Vendor><Health>OK</Health><Capacity>465.76 GB</Capacity><Temperature><oC>42</oC><oF>107</oF></Temperature>
+<temp_alert>0</temp_alert><LastTestSts /><LastTestType /><LastTestTime /><Model>WD5003ABYZ-011FA0</Model><Serial>REDACTED</Serial><FirmVersion>01.01S03</FirmVersion><ATAVersion>01.01S03</ATAVersion><ATADescription>01.01S03</ATADescription><hd_is_ssd>0</hd_is_ssd></entry>
+<entry><Disk_Alias>3.5" SATA HDD 4</Disk_Alias><Disk_Status>0</Disk_Status><HDNo>0:4</HDNo><Vendor>WDC WD5003ABYZ-011FA0 01.01S03</Vendor><Health>OK</Health><Capacity>465.76 GB</Capacity><Temperature><oC>41</oC><oF>105</oF></Temperature>
+<temp_alert>0</temp_alert><LastTestSts /><LastTestType /><LastTestTime /><Model>WD5003ABYZ-011FA0</Model><Serial>REDACTED</Serial><FirmVersion>01.01S03</FirmVersion><ATAVersion>01.01S03</ATAVersion><ATADescription>01.01S03</ATADescription><hd_is_ssd>0</hd_is_ssd></entry>
+</Disk_Info>
+</QDocRoot>

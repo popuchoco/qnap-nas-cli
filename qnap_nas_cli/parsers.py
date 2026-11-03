@@ -23,6 +23,13 @@ def integer(value: Optional[str]) -> Optional[int]:
     return None if parsed is None else int(parsed)
 
 
+def disk_slot(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    match = re.fullmatch(r"\d+:(\d+)", value)
+    return match.group(1) if match else value
+
+
 def parse_uptime(root: ET.Element) -> Optional[Dict[str, Any]]:
     days = integer(text(root, "uptime_day"))
     if days is None:
@@ -104,23 +111,70 @@ def parse_storage(root: ET.Element) -> Dict[str, Any]:
                     "status_code": status_code,
                     "status_semantics": semantics,
                 })
-        if tag in ("disk", "disk_info") or (tag.startswith("disk") and list(node)):
-            disk_no = text(node, "disk_no") or text(node, "disk_number") or text(node, "port_no")
-            model = text(node, "model") or text(node, "model_name")
+        is_smart_entry = tag == "entry" and text(node, "HDNo") is not None
+        if tag in ("disk", "disk_info") or (tag.startswith("disk") and list(node)) or is_smart_entry:
+            raw_disk_no = text(node, "disk_no") or text(node, "disk_number") or text(node, "port_no") or text(node, "HDNo")
+            disk_no = disk_slot(raw_disk_no)
+            model = text(node, "model") or text(node, "model_name") or text(node, "Model")
             if disk_no or model:
                 disks.append({
                     "disk": disk_no,
+                    "locator": raw_disk_no if raw_disk_no != disk_no else None,
                     "model": model,
-                    "serial": text(node, "serial_no") or text(node, "serial"),
-                    "temperature_c": number(text(node, "temperature") or text(node, "temp")),
-                    "smart": text(node, "smart") or text(node, "smart_status") or text(node, "status"),
+                    "serial": text(node, "serial_no") or text(node, "serial") or text(node, "Serial"),
+                    "temperature_c": number(text(node, "temperature") or text(node, "temp") or text(node, "oC")),
+                    "smart": text(node, "smart") or text(node, "smart_status") or text(node, "status") or text(node, "Health"),
+                    "capacity": text(node, "Capacity"),
+                    "media_type": "ssd" if integer(text(node, "hd_is_ssd")) == 1 else None,
                 })
+    disk_count = integer(text(root, "disk_num")) or 0
+    for index in range(1, disk_count + 1):
+        installed = integer(text(root, "disk_installed{}".format(index)))
+        if installed == 0:
+            continue
+        temperature = number(text(root, "tempc{}".format(index)))
+        alias = text(root, "hd_pd_alias{}".format(index))
+        if installed is not None or temperature is not None or alias:
+            disks.append({
+                "disk": str(index),
+                "model": None,
+                "serial": None,
+                "temperature_c": temperature,
+                "smart": None,
+                "installed": installed == 1 if installed is not None else None,
+                "media_type": "ssd" if integer(text(root, "hd_is_ssd{}".format(index))) == 1 else "hdd",
+                "alias": alias,
+            })
     warnings = []
     if not volumes:
         warnings.append("no_volume_records")
     if not disks:
         warnings.append("no_disk_records")
     return {"volumes": _unique(volumes), "disks": _unique(disks), "parser_warnings": warnings}
+
+
+def merge_storage(*reports: Dict[str, Any]) -> Dict[str, Any]:
+    volumes = _unique([item for report in reports for item in report.get("volumes", [])])
+    disks_by_number = {}  # type: Dict[str, Dict[str, Any]]
+    unnumbered = []  # type: List[Dict[str, Any]]
+    for report in reports:
+        for item in report.get("disks", []):
+            disk_number = item.get("disk")
+            if disk_number is None:
+                unnumbered.append(item)
+                continue
+            key = str(disk_number)
+            current = disks_by_number.setdefault(key, {})
+            for field, value in item.items():
+                if field not in current or current[field] is None:
+                    current[field] = value
+    disks = list(disks_by_number.values()) + _unique(unnumbered)
+    warnings = []
+    if not volumes:
+        warnings.append("no_volume_records")
+    if not disks:
+        warnings.append("no_disk_records")
+    return {"volumes": volumes, "disks": disks, "parser_warnings": warnings}
 
 
 def _unique(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

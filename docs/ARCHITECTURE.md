@@ -20,11 +20,13 @@ Health is three-state. `healthy` means required evidence was observed and no kno
 
 The storage parser retains raw QTS status codes and adds explicit semantics (`known_good`, `known_bad`, or `unknown`). New codes remain unknown until a real, reviewed fixture establishes their meaning.
 
-The initial QTS request uses `extra_get` with `extra_vol_index=1`. Its source metadata is explicitly `coverage: unverified`. Until live comparison establishes how a target firmware enumerates additional pools and volumes, this evidence gap prevents an overall healthy result but does not hide known bad findings.
+Volume discovery uses `extra_get` with `extra_vol_index=1`, whose coverage remains explicitly unverified. Disk evidence merges flat bay observations from sysinfo with `qsmart.cgi?func=all_hd_data`; enclosure locators such as `0:2` are normalized to bay `2` while the raw locator is retained. Top-level SMART Health is evidence, not proof that every attribute and historical QTS warning is clear.
 
 ## Fixture contract
 
-`qts dump` writes redacted response files plus a versioned manifest and local parser validation. `qts fixture validate` performs the same validation without contacting a NAS. Synthetic unit fixtures test edge cases, but they are never labeled as device evidence.
+`qts dump` v2 writes redacted sysinfo, volume, and SMART response files plus a versioned manifest and local parser validation. Redaction covers hostnames, serials, IP addresses, netmasks, MAC addresses, and DNS values while preserving non-secret capability flags. `qts fixture validate` performs the same validation without contacting a NAS. Synthetic unit fixtures test edge cases, but they are never labeled as device evidence.
+
+The reviewed TS-431K fixture comes from QTS 5.2.8 build 20251216. The firmware reports the internal model alias `TS-X41`; compatibility must not rely only on the retail model string.
 
 ## Mutation gate
 

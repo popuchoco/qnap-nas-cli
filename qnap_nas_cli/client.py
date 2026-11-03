@@ -42,15 +42,19 @@ class QtsClient:
                 reason += "（請安裝可信憑證；僅在受信任區網暫時使用 --insecure）"
             raise QtsError("無法連線至 NAS：{}".format(reason)) from exc
 
-    def login(self, password: str) -> str:
+    def login(self, password: str, security_code: Optional[str] = None) -> str:
         if not password:
             raise AuthenticationError("密碼不可為空")
-        body = urllib.parse.urlencode({
+        fields = {
             "user": self.config.username,
             "pwd": base64.b64encode(password.encode("utf-8")).decode("ascii"),
             "serviceKey": "1",
             "client_app": "qnap-nas-cli",
-        }).encode("ascii")
+        }
+        if security_code:
+            fields["security_code"] = security_code
+            fields["dont_verify_2sv_again"] = "0"
+        body = urllib.parse.urlencode(fields).encode("ascii")
         request = urllib.request.Request(
             self.config.origin + AUTH_PATH,
             data=body,
@@ -62,6 +66,11 @@ class QtsClient:
         except ET.ParseError as exc:
             raise CompatibilityError("QTS 登入回應不是預期的 XML") from exc
         if _xml_text(root, "authPassed") != "1":
+            needs_2fa = _xml_text(root, "need_2_step_verification") == "1" or _xml_text(root, "need_2sv") == "1"
+            if needs_2fa and not security_code:
+                raise AuthenticationError("QTS 帳號需要 2FA；請設定當下的 QTS_SECURITY_CODE 後重試")
+            if needs_2fa and security_code:
+                raise AuthenticationError("QTS 2FA 驗證失敗；請確認驗證碼與 NAS 時間")
             code = _xml_text(root, "errorValue") or "unknown"
             raise AuthenticationError("QTS 登入失敗（errorValue={}）".format(code))
         sid = _xml_text(root, "authSid")

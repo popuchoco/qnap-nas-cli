@@ -6,13 +6,14 @@ from typing import Any, Dict
 
 from .client import QtsClient
 from .config import Config
-from .parsers import parse_network, parse_storage, parse_system
+from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
 from .ssh_backend import tailscale_status
 
 
 SYSINFO_PATH = "/cgi-bin/management/manaRequest.cgi"
 DISK_PATH = "/cgi-bin/disk/disk_manage.cgi"
+SMART_PATH = "/cgi-bin/disk/qsmart.cgi"
 
 
 def sysinfo(client: QtsClient) -> Dict[str, Any]:
@@ -24,12 +25,17 @@ def network(client: QtsClient) -> Dict[str, Any]:
 
 
 def storage(client: QtsClient) -> Dict[str, Any]:
-    result = parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"}))
+    result = merge_storage(
+        parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"})),
+        parse_storage(client.get_xml(SYSINFO_PATH, {"subfunc": "sysinfo"})),
+        parse_storage(client.get_xml(SMART_PATH, {"func": "all_hd_data"})),
+    )
     result["source"] = {
         "endpoint": DISK_PATH,
         "func": "extra_get",
         "extra_vol_index": 1,
         "coverage": "unverified",
+        "additional_endpoints": [SYSINFO_PATH, SMART_PATH],
     }
     return result
 
@@ -95,6 +101,7 @@ def dump(client: QtsClient, directory: Path) -> Dict[str, Any]:
     responses = {
         "sysinfo.xml": client.get(SYSINFO_PATH, {"subfunc": "sysinfo"}),
         "storage.xml": client.get(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"}),
+        "smart.xml": client.get(SMART_PATH, {"func": "all_hd_data"}),
     }
     saved = []
     for filename, raw in responses.items():
@@ -102,7 +109,7 @@ def dump(client: QtsClient, directory: Path) -> Dict[str, Any]:
         target.write_text(redact_xml(raw), encoding="utf-8")
         saved.append(filename)
     manifest = {
-        "format_version": 1,
+        "format_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "redacted": True,
         "files": saved,
@@ -126,7 +133,12 @@ def validate_dump(directory: Path) -> Dict[str, Any]:
             errors.append("sysinfo.xml: {}".format(exc))
     if "storage.xml" in present:
         try:
-            observations["storage"] = parse_storage(ET.parse(str(directory / "storage.xml")).getroot())
+            storage_reports = [parse_storage(ET.parse(str(directory / "storage.xml")).getroot())]
+            if "sysinfo.xml" in present:
+                storage_reports.append(parse_storage(ET.parse(str(directory / "sysinfo.xml")).getroot()))
+            if "smart.xml" in present:
+                storage_reports.append(parse_storage(ET.parse(str(directory / "smart.xml")).getroot()))
+            observations["storage"] = merge_storage(*storage_reports)
         except (OSError, ET.ParseError) as exc:
             errors.append("storage.xml: {}".format(exc))
     storage_data = observations.get("storage", {})
