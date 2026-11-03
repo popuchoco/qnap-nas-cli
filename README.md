@@ -167,14 +167,20 @@ qts fixture validate qts-dump-ts431k --json
 
 ## Incident / repair 工作流（目前為受限 v1）
 
-`qts incident scan` 使用 QNAP File Station API 的 `get_tree`／`get_list` 做 bounded read-only inventory：最多掃描 100,000 個項目、深度 12；預設 10,000。僅掃描登入帳號可見的共享資料夾名稱，不讀內容、不掃程序／行為／系統日誌，也不代表完整 filesystem coverage。已知規則包含 `.deadbolt`、Qlocker 的 `!!!READ_ME.txt`，以及大量 `.7z` 的低信心群聚；Qlocker 曾以 `.7z` 加密/封存並生成 ransom note，DeadBolt 使用 `.deadbolt` 副檔名。[QNAP 的 Qlocker 說明](https://www.qnap.com/static/landing/2021/qlocker/response/en/)、[QSA-22-02](https://www.qnap.com/en-us/security-advisory/qsa-22-02)。無命中永遠回 `indeterminate`，不回 `clean`；命中代表疑似而非確診。
+`qts incident scan` 使用 QNAP File Station API 的 `get_tree`／`get_list` 做 bounded read-only inventory：最多掃描 100,000 個項目、深度 12；預設 10,000。僅掃描登入帳號可見的共享資料夾名稱，不讀內容、不掃程序／行為／系統日誌，也不代表完整 filesystem coverage。已知規則包含 `.deadbolt`、Qlocker 的 `!!!READ_ME.txt`，以及大量 `.7z` 的低信心群聚；Qlocker 曾以 `.7z` 加密/封存並生成 ransom note，DeadBolt 使用 `.deadbolt` 副檔名。無命中永遠回 `indeterminate`，不回 `clean`；命中代表疑似而非確診。官方事件說明、公告與 API 規格列於下方參考資料。
 
 應變分工：
 
 1. **scan**：保存有限掃描、health、可用的 RAID/QPKG observation 與 coverage gaps。
 2. **contain**：只輸出人工步驟，建議從 router/switch 限制外部與不必要用戶端流量，同時保留受控管理／取證路徑；不自動更改 NAS firewall 或 stop process。
 3. **evidence**：建立全新本機目錄、保存 JSON report 和 SHA-256 manifest。`rescue --candidate-path` 只可匯出 report 已列出的 IOC 範例，使用串流與大小上限，另算 SHA-256；不執行檔案、不傳回 NAS。
-4. **rescue**：全量資料復原仍需先遏止、可信任重建與修補，再由離線／不可變備份恢復至新位置、驗證後切換；本 CLI 不會在疑似受感染 NAS 上覆寫還原。若疑似正在進行 Qlocker 活動，QNAP 的事件說明明確要求不要關機／重開機，並聯絡 QNAP 支援；家族與韌體不同時應以對應官方公告為準。[QNAP Qlocker incident guidance](https://www.qnap.com/static/landing/2021/qlocker/response/en/)
+4. **rescue**：全量資料復原仍需先遏止、可信任重建與修補，再由離線／不可變備份恢復至新位置、驗證後切換；本 CLI 不會在疑似受感染 NAS 上覆寫還原。若疑似正在進行 Qlocker 活動，請依 QNAP 對應事件指引處理；家族與韌體不同時應以對應官方公告為準。
+
+### QNAP 官方事件與 API 參考
+
+- [Qlocker 說明與處置指引](https://www.qnap.com/static/landing/2021/qlocker/response/en/)：Qlocker 事件回應資訊與官方建議。
+- [DeadBolt 安全公告（QSA-22-02）](https://www.qnap.com/en-us/security-advisory/qsa-22-02)：DeadBolt 事件與受影響產品／處置資訊。
+- [QTS File Station HTTP API v5（PDF）](https://download.qnap.com/dev/QNAP_QTS_File_Station_API_v5.pdf)：`incident scan` 使用之 File Station API 契約參考。
 
 一般 `repair plan/apply` 的 code contract 已定義：計畫有 15 分鐘有效期與 hash `plan_id`；apply 要求逐字確認、裝置身分相同、前置條件已核對，每一步重新讀取 before state，操作後 readback 驗證，失敗即停止後續步驟。CLI 目前只輸出 `refused` plan，因為 QNAP 寫入 API/SSH 動作尚未通過實機測試；因此這不是可以改 NAS 的功能預告，而是安全框架先行。
 
