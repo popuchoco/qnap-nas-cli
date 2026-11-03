@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from . import __version__
 from .client import QtsClient
-from .commands import dump, health, network, storage, sysinfo, tailscale
+from .commands import dump, health, network, storage, sysinfo, tailscale, validate_dump
 from .config import Config, default_config_path, load_config, password_from_environment, save_config
 from .errors import QtsError
 from .mcp import serve
@@ -38,6 +38,11 @@ def parser() -> argparse.ArgumentParser:
     subs.add_parser("tailscale", help="透過設定的免密 SSH 讀取 Tailscale")
     dump_parser = subs.add_parser("dump", help="匯出已遮蔽敏感資料的相容性樣本")
     dump_parser.add_argument("directory", nargs="?", type=Path, default=Path("qts-dump"))
+    fixture_parser = subs.add_parser("fixture", help="驗證 dump/fixture 是否能安全解析")
+    fixture_subs = fixture_parser.add_subparsers(dest="fixture_command", required=True)
+    fixture_validate = fixture_subs.add_parser("validate", help="離線驗證已遮蔽的 dump")
+    fixture_validate.add_argument("directory", type=Path)
+    fixture_validate.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     subs.add_parser("mcp", help="啟動唯讀 stdio MCP server")
     seen = set()
     for command_parser in subs.choices.values():
@@ -108,6 +113,10 @@ def main(argv: Optional[list] = None) -> int:
             target = save_config(Config(args.origin, args.user, args.insecure, args.ssh_host, args.ssh_user, args.timeout), args.config)
             _print({"saved": str(target), "password_saved": False}, args.json)
             return 0
+        if args.command == "fixture":
+            result = validate_dump(args.directory)
+            _print(result, args.json)
+            return 0 if result["valid"] else 2
         config = _config(args)
         if args.command == "doctor":
             _print(_doctor(config, args.config), args.json)

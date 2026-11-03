@@ -24,13 +24,26 @@ def network(client: QtsClient) -> Dict[str, Any]:
 
 
 def storage(client: QtsClient) -> Dict[str, Any]:
-    return parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"}))
+    result = parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"}))
+    result["source"] = {
+        "endpoint": DISK_PATH,
+        "func": "extra_get",
+        "extra_vol_index": 1,
+        "coverage": "unverified",
+    }
+    return result
 
 
 def health(client: QtsClient) -> Dict[str, Any]:
     system = sysinfo(client)
     result = storage(client)
     findings = []
+    unknowns = []
+    if result.get("source", {}).get("coverage") != "verified":
+        unknowns.append({
+            "code": "storage_scope_unverified",
+            "message": "extra_vol_index=1 的回應尚未經實機對照證明涵蓋全部 Storage",
+        })
     temp = system.get("temperature_c")
     if isinstance(temp, (int, float)) and temp >= 70:
         findings.append({"severity": "warning", "code": "system_temperature", "message": "系統溫度偏高：{} °C".format(temp)})
@@ -38,19 +51,42 @@ def health(client: QtsClient) -> Dict[str, Any]:
         status = str(disk.get("smart") or "").lower()
         if status and status not in ("0", "good", "ready", "normal", "ok"):
             findings.append({"severity": "warning", "code": "disk_health", "disk": disk.get("disk"), "message": "磁碟健康狀態需要確認：{}".format(disk.get("smart"))})
+        elif not status:
+            unknowns.append({"code": "disk_health_unknown", "disk": disk.get("disk"), "message": "QTS 回應未提供可判讀的磁碟健康狀態"})
         disk_temp = disk.get("temperature_c")
         if isinstance(disk_temp, (int, float)) and disk_temp >= 55:
             findings.append({"severity": "warning", "code": "disk_temperature", "disk": disk.get("disk"), "message": "磁碟溫度偏高：{} °C".format(disk_temp)})
     for volume in result["volumes"]:
-        if volume.get("status") not in ("ready", "unknown"):
+        if volume.get("status_semantics") == "known_bad":
             findings.append({"severity": "critical", "code": "volume_status", "volume": volume.get("name"), "message": "儲存空間狀態：{}".format(volume.get("status"))})
+        elif volume.get("status_semantics") != "known_good":
+            unknowns.append({
+                "code": "volume_status_unknown",
+                "volume": volume.get("name"),
+                "status_code": volume.get("status_code"),
+                "message": "儲存空間狀態未知；不能據此判定健康",
+            })
+    for warning in result.get("parser_warnings", []):
+        unknowns.append({"code": warning, "message": "Storage 回應缺少預期資料：{}".format(warning)})
+    if findings:
+        overall_status = "unhealthy"
+        healthy = False
+    elif unknowns:
+        overall_status = "indeterminate"
+        healthy = None
+    else:
+        overall_status = "healthy"
+        healthy = True
     return {
-        "healthy": not findings,
+        "status": overall_status,
+        "healthy": healthy,
+        "data_completeness": "partial" if unknowns else "complete",
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "system": system,
         "storage": result,
         "findings": findings,
-        "note": "QTS CGI 欄位會因機型與韌體不同；unknown 不等於健康。",
+        "unknowns": unknowns,
+        "note": "healthy 只代表已觀察欄位沒有異常且必要狀態完整；indeterminate 代表資料不足。",
     }
 
 
@@ -64,10 +100,49 @@ def dump(client: QtsClient, directory: Path) -> Dict[str, Any]:
     for filename, raw in responses.items():
         target = directory / filename
         target.write_text(redact_xml(raw), encoding="utf-8")
-        saved.append(str(target))
-    manifest = {"generated_at": datetime.now(timezone.utc).isoformat(), "redacted": True, "files": saved}
+        saved.append(filename)
+    manifest = {
+        "format_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "redacted": True,
+        "files": saved,
+        "validation": validate_dump(directory),
+    }
     (directory / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest
+
+
+def validate_dump(directory: Path) -> Dict[str, Any]:
+    import xml.etree.ElementTree as ET
+    required = {"sysinfo.xml", "storage.xml"}
+    present = {path.name for path in directory.iterdir()} if directory.is_dir() else set()
+    missing = sorted(required - present)
+    errors = []
+    observations = {}
+    if "sysinfo.xml" in present:
+        try:
+            observations["system"] = parse_system(ET.parse(str(directory / "sysinfo.xml")).getroot())
+        except (OSError, ET.ParseError) as exc:
+            errors.append("sysinfo.xml: {}".format(exc))
+    if "storage.xml" in present:
+        try:
+            observations["storage"] = parse_storage(ET.parse(str(directory / "storage.xml")).getroot())
+        except (OSError, ET.ParseError) as exc:
+            errors.append("storage.xml: {}".format(exc))
+    storage_data = observations.get("storage", {})
+    warnings = list(storage_data.get("parser_warnings", []))
+    if storage_data:
+        warnings.append("storage_query_scope_unverified")
+    for volume in storage_data.get("volumes", []):
+        if volume.get("status_semantics") == "unknown":
+            warnings.append("unknown_volume_status:{}".format(volume.get("status_code")))
+    return {
+        "valid": not missing and not errors,
+        "missing": missing,
+        "errors": errors,
+        "warnings": warnings,
+        "observations": observations,
+    }
 
 
 def tailscale(config: Config) -> Dict[str, Any]:

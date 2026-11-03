@@ -28,10 +28,19 @@ class ParserTest(unittest.TestCase):
         result = parse_network(ET.fromstring(SYSINFO))
         self.assertEqual(result["adapters"][0]["status"], "up")
         self.assertEqual(result["dns"], ["192.168.1.1"])
+        self.assertEqual(result["dns_status"], "observed")
+
+    def test_nested_dns_and_unknown_dns_format_degrade_explicitly(self):
+        nested = parse_network(ET.fromstring("<QDocRoot><DNS_LIST><IP>1.1.1.1</IP><IP>8.8.8.8</IP></DNS_LIST></QDocRoot>"))
+        unknown = parse_network(ET.fromstring("<QDocRoot><DNS_LIST><IP /></DNS_LIST></QDocRoot>"))
+        self.assertEqual(nested["dns"], ["1.1.1.1", "8.8.8.8"])
+        self.assertEqual(nested["dns_status"], "observed")
+        self.assertEqual(unknown["dns_status"], "unknown_format")
 
     def test_storage(self):
         result = parse_storage(ET.fromstring(STORAGE))
         self.assertEqual(result["volumes"][0]["status"], "degraded")
+        self.assertEqual(result["volumes"][0]["status_semantics"], "known_bad")
         self.assertEqual(result["disks"][0]["smart"], "Warning")
 
     def test_dump_redaction(self):

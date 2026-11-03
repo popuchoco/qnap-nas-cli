@@ -49,27 +49,47 @@ def response(request_id: Any, result: Any = None, error: Any = None) -> Dict[str
     return value
 
 
+def handle_line(line: str, config: Config):
+    request_id = None
+    try:
+        request = json.loads(line)
+    except ValueError:
+        return response(None, error={"code": -32700, "message": "Parse error"})
+    if not isinstance(request, dict):
+        return response(None, error={"code": -32600, "message": "Invalid Request"})
+    request_id = request.get("id")
+    if request.get("jsonrpc") != "2.0" or not isinstance(request.get("method"), str):
+        return response(request_id, error={"code": -32600, "message": "Invalid Request"})
+    method = request["method"]
+    params = request.get("params", {})
+    if not isinstance(params, dict):
+        return response(request_id, error={"code": -32602, "message": "Invalid params"})
+    is_notification = "id" not in request
+    try:
+        if method == "initialize":
+            result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "qnap-nas-cli", "version": "0.1.1"}}
+        elif method == "notifications/initialized":
+            return None
+        elif method == "tools/list":
+            result = {"tools": TOOLS}
+        elif method == "tools/call":
+            name = params.get("name")
+            if not isinstance(name, str):
+                return None if is_notification else response(request_id, error={"code": -32602, "message": "Invalid params"})
+            data = call_tool(config, name)
+            result = {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False, indent=2)}], "structuredContent": data}
+        elif method == "ping":
+            result = {}
+        else:
+            return None if is_notification else response(request_id, error={"code": -32601, "message": "Method not found"})
+        return None if is_notification else response(request_id, result=result)
+    except QtsError as exc:
+        return None if is_notification else response(request_id, error={"code": -32000, "message": str(exc)})
+
+
 def serve(config: Config) -> int:
     for line in sys.stdin:
-        try:
-            request = json.loads(line)
-            method = request.get("method")
-            request_id = request.get("id")
-            if method == "initialize":
-                result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "qnap-nas-cli", "version": "0.1.0"}}
-            elif method == "notifications/initialized":
-                continue
-            elif method == "tools/list":
-                result = {"tools": TOOLS}
-            elif method == "tools/call":
-                data = call_tool(config, request.get("params", {}).get("name", ""))
-                result = {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False, indent=2)}], "structuredContent": data}
-            elif method == "ping":
-                result = {}
-            else:
-                print(json.dumps(response(request_id, error={"code": -32601, "message": "Method not found"})), flush=True)
-                continue
-            print(json.dumps(response(request_id, result=result), ensure_ascii=False), flush=True)
-        except (ValueError, QtsError) as exc:
-            print(json.dumps(response(locals().get("request_id"), error={"code": -32000, "message": str(exc)}), ensure_ascii=False), flush=True)
+        result = handle_line(line, config)
+        if result is not None:
+            print(json.dumps(result, ensure_ascii=False), flush=True)
     return 0

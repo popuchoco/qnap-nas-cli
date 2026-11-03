@@ -5,12 +5,12 @@
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
-目前是 `0.1.0` 初始版本，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
+目前是 `0.1.1`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
 ## 目前狀態
 
 - 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
-- 18 項離線測試、Python bytecode compilation、CLI smoke test 與 wheel build 均已通過。
+- 25 項離線測試、Python bytecode compilation、CLI smoke test 與 wheel build 均已通過。
 - GitHub Actions 已在 Python 3.8、3.12、3.13 完成驗證：[成功的 CI run](https://github.com/popuchoco/qnap-nas-cli/actions/runs/41594356258)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - QTS response parser 目前使用離線 fixture 驗證；TS-431K 實機 dump 與 live smoke test 尚未完成，因此會明確保留 `unknown`，不把缺少欄位誤判為健康。
@@ -22,11 +22,12 @@
 - `setup`：保存 HTTPS、帳號與選用的 SSH 主機；不保存密碼。
 - `doctor`／`whoami`：檢查本機條件並驗證 QTS 登入。
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
-- `health`：唯讀彙整磁碟、Volume 與異常 finding。
+- `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談。
 - `storage`／`disks`／`volumes`：列出 QTS CGI 可觀察到的儲存資料。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：經過明確設定的免密 SSH 執行固定的 `tailscale status --json`。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
+- `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
 - `mcp`：提供五個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
@@ -69,6 +70,7 @@ QTS_PASSWORD='...' qts mcp
 
 # 產生已遮蔽的相容性資料
 qts dump qts-dump
+qts fixture validate qts-dump --json
 ```
 
 若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。密碼不接受命令列參數，也不會寫入設定檔。
@@ -96,6 +98,30 @@ qts dump qts-dump
 - `qts_tailscale`
 
 MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
+
+## Health 語義
+
+`health` 不把「沒有發現異常」直接等同「已證明健康」：
+
+- `status: healthy`／`healthy: true`：必要狀態完整，而且觀察值沒有已知異常。
+- `status: unhealthy`／`healthy: false`：存在已知異常，例如 degraded Volume、明確 SMART warning 或過熱。
+- `status: indeterminate`／`healthy: null`：資料缺少、`vol_status=0`、未知狀態碼，或 parser 沒找到必要記錄。
+
+已知異常放在 `findings`；資料不足放在 `unknowns`。兩者不互相替代。原始 `status_code` 仍保留，方便用真實 fixture 校準新韌體。
+
+目前 Storage CGI 固定使用 `func=extra_get&extra_vol_index=1`。回應會標記 `source.coverage: unverified`；在真實 NAS dump 尚未與 QTS UI／其他索引對照前，即使觀察到的 Volume 都是 ready，整體 Health 仍為 `indeterminate`，不會宣稱所有 Storage 健康。
+
+## 真實 dump 與 fixture 流程
+
+```bash
+# 在受信任管理電腦上連線 NAS，輸出已遮蔽資料
+qts dump qts-dump-ts431k
+
+# 離線確認 XML 可解析，並列出未知狀態
+qts fixture validate qts-dump-ts431k --json
+```
+
+`dump` manifest 使用版本化格式並包含同一次 parser validation。提交 fixture 前仍應人工檢查內容；驗證通過只代表結構可解析，不代表 NAS 健康。Repository 不會用手寫 XML 冒充 TS-431K 實機 fixture。
 
 ## 架構參考與設計來源
 
@@ -162,7 +188,7 @@ CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 whee
 
 ## Roadmap
 
-1. 以 TS-431K/QTS 5.x 的 `qts dump` fixture 固化 system、disk、volume parsing。
+1. 以 TS-431K/QTS 5.x 的真實、已人工審查 `qts dump` fixture 固化 system、disk、volume parsing。
 2. 新增原始 SMART 與 RAID `/proc/mdstat` 唯讀 SSH 報告。
 3. Container Station、Tailscale 與 AdGuard 的狀態／依賴圖。
 4. 具 plan、dry-run、確認、重測與 rescue steps 的受控修復命令。
