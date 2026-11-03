@@ -39,3 +39,15 @@ QTS 5.x may accept the password phase while withholding a SID and returning `nee
 ## ADR-010 — Storage evidence is merged, not overclaimed
 
 The reviewed TS-431K/QTS 5.2.8 fixture showed that `disk_manage.cgi extra_get` returned a volume row but no disk records, while sysinfo exposed bay temperatures and `qsmart.cgi all_hd_data` exposed model, capacity, serial, and top-level Health. These sources are merged by normalized bay locator. Volume scope and `vol_status=0` remain unknown, and a top-level SMART `Normal` cannot negate a more specific QTS warning.
+
+## ADR-011 — SSH probes are shell-free and allowlisted
+
+Deep read-only evidence uses direct OpenSSH argv for `cat /proc/mdstat`, QNAP SMART attributes, fixed QPKG reads, Container Station status, and Tailscale JSON status. No probe accepts arbitrary commands or package names, and `/bin/sh -c` is forbidden. Disk slots are numeric and bounded. Password authentication is not automated; an explicit identity path may be configured.
+
+## ADR-012 — Mutation maturity is gated by recovery
+
+Read-only coverage and real fixtures come first. The first mutations, if implemented, are one or two low-risk reversible service or settings operations. Every mutation requires plan, dry-run, explicit confirmation, post-change verification, and concrete rescue steps. A second administrator and an independent recovery path must be proven before higher-risk work. RAID rebuild, SMART repair, disk operations, and broad firewall changes are excluded from early versions.
+
+## ADR-013 — QNAP-specific output remains unknown until proven
+
+The TS-431K fixture contains QNAP system arrays with `[128/3]` member maps. Their underscores are not interpreted as ordinary Linux md failures; the parser preserves the map and reports unknown semantics. Empty `get_hd_smartinfo` output is reported as firmware-unavailable, not healthy. QPKG `Enable` and `Status=complete` are package metadata and do not prove daemon or workload health.

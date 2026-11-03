@@ -25,6 +25,12 @@ class ConfigTest(unittest.TestCase):
             self.assertNotIn("password", raw.lower())
             self.assertEqual(load_config(path).username, "ops")
 
+    def test_roundtrip_keeps_non_secret_ssh_identity_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            save_config(Config("https://nas.example", "ops", ssh_identity_file="C:/keys/qnap"), path)
+            self.assertEqual(load_config(path).ssh_identity_file, "C:/keys/qnap")
+
 
 if __name__ == "__main__":
     unittest.main()

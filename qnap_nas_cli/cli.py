@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from . import __version__
 from .client import QtsClient
-from .commands import dump, health, network, storage, sysinfo, tailscale, validate_dump
+from .commands import disks_ssh, dump, health, network, raid, services, smart_details, storage, sysinfo, tailscale, validate_dump
 from .config import Config, default_config_path, load_config, password_from_environment, save_config
 from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
@@ -27,6 +27,7 @@ def parser() -> argparse.ArgumentParser:
     setup.add_argument("--user", required=True)
     setup.add_argument("--ssh-host")
     setup.add_argument("--ssh-user")
+    setup.add_argument("--ssh-identity-file")
     setup.add_argument("--timeout", type=int, default=15)
 
     subs.add_parser("doctor", help="檢查本機設定與連線前置條件")
@@ -36,6 +37,11 @@ def parser() -> argparse.ArgumentParser:
     subs.add_parser("storage", aliases=["disks", "volumes"], help="磁碟與儲存空間")
     subs.add_parser("network", help="網路介面與 DNS")
     subs.add_parser("tailscale", help="透過設定的免密 SSH 讀取 Tailscale")
+    subs.add_parser("raid", help="透過免密 SSH 唯讀解析 /proc/mdstat")
+    smart_parser = subs.add_parser("smart-details", help="透過免密 SSH 讀取指定 bay 的 SMART attributes")
+    smart_parser.add_argument("disk", type=int)
+    subs.add_parser("disk-topology", help="透過唯讀 SSH 讀取實體磁碟 bay、角色與型號")
+    subs.add_parser("services", help="唯讀檢查 Container Station 與 Tailscale QPKG 狀態")
     dump_parser = subs.add_parser("dump", help="匯出已遮蔽敏感資料的相容性樣本")
     dump_parser.add_argument("directory", nargs="?", type=Path, default=Path("qts-dump"))
     fixture_parser = subs.add_parser("fixture", help="驗證 dump/fixture 是否能安全解析")
@@ -127,7 +133,7 @@ def main(argv: Optional[list] = None) -> int:
     args = parser().parse_args(argv)
     try:
         if args.command == "setup":
-            target = save_config(Config(args.origin, args.user, args.insecure, args.ssh_host, args.ssh_user, args.timeout), args.config)
+            target = save_config(Config(args.origin, args.user, args.insecure, args.ssh_host, args.ssh_user, args.timeout, args.ssh_identity_file), args.config)
             _print({"saved": str(target), "password_saved": False}, args.json)
             return 0
         if args.command == "fixture":
@@ -140,8 +146,15 @@ def main(argv: Optional[list] = None) -> int:
             return 0
         if args.command == "mcp":
             return serve(config)
-        if args.command == "tailscale":
-            _print(tailscale(config), args.json)
+        if args.command in ("tailscale", "raid", "disk-topology", "smart-details", "services"):
+            ssh_operations = {
+                "tailscale": lambda: tailscale(config),
+                "raid": lambda: raid(config),
+                "disk-topology": lambda: disks_ssh(config),
+                "smart-details": lambda: smart_details(config, args.disk),
+                "services": lambda: services(config),
+            }
+            _print(ssh_operations[args.command](), args.json)
             return 0
         operations = {
             "status": sysinfo,

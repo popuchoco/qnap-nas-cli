@@ -3,7 +3,8 @@ import os
 import sys
 from typing import Any, Callable, Dict
 
-from .commands import health, network, storage, sysinfo, tailscale
+from . import __version__
+from .commands import disks_ssh, health, network, raid, services, storage, sysinfo, tailscale
 from .config import Config, password_from_environment
 from .client import QtsClient
 from .errors import QtsError
@@ -15,6 +16,9 @@ TOOLS = [
     {"name": "qts_storage", "description": "List observable QTS volumes and disks", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_network", "description": "List observable QTS network adapters and DNS", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_tailscale", "description": "Read Tailscale state through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "qts_raid", "description": "Read and parse /proc/mdstat through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "qts_disk_topology", "description": "Read physical disk bay, role and model through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "qts_services", "description": "Read Container Station and Tailscale package state", "inputSchema": {"type": "object", "properties": {}}},
 ]
 
 
@@ -34,8 +38,9 @@ def call_tool(config: Config, name: str) -> Dict[str, Any]:
         "qts_storage": storage,
         "qts_network": network,
     }
-    if name == "qts_tailscale":
-        return tailscale(config)
+    ssh_operations = {"qts_tailscale": tailscale, "qts_raid": raid, "qts_disk_topology": disks_ssh, "qts_services": services}
+    if name in ssh_operations:
+        return ssh_operations[name](config)
     if name not in operations:
         raise QtsError("未知 MCP tool：{}".format(name))
     return _web_call(config, operations[name])
@@ -68,7 +73,7 @@ def handle_line(line: str, config: Config):
     is_notification = "id" not in request
     try:
         if method == "initialize":
-            result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "qnap-nas-cli", "version": "0.1.1"}}
+            result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "qnap-nas-cli", "version": __version__}}
         elif method == "notifications/initialized":
             return None
         elif method == "tools/list":

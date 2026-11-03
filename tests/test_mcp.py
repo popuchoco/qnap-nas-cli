@@ -8,7 +8,7 @@ class McpTest(unittest.TestCase):
     config = Config("http://127.0.0.1:8080", "test")
     def test_tools_are_read_only_named(self):
         names = {tool["name"] for tool in TOOLS}
-        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale"})
+        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_disk_topology", "qts_services"})
 
     def test_json_rpc_response(self):
         self.assertEqual(response(7, result={"ok": True})["id"], 7)

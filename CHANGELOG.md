@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3 — 2026-11-03
+
+- Add shell-free read-only SSH probes for `/proc/mdstat`, physical disk topology, SMART attributes, and fixed Container Station/Tailscale package state.
+- Parse degraded RAID member maps and recovery/resync progress.
+- Add explicit SSH identity-file configuration without storing key material or passwords.
+- Expose RAID and service status through CLI and read-only MCP tools.
+- Formalize the recovery-gated progression from real fixtures to low-risk reversible mutations.
+- Add reviewed TS-431K SSH fixtures; keep QNAP 128-wide RAID maps, empty SMART output, and QPKG runtime health explicitly unknown.
+
 ## 0.1.2 — 2026-11-03
 
 - Add QTS 2FA TOTP authentication without persistent bypass tokens.

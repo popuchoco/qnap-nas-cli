@@ -1,0 +1,5 @@
+Enclosure  Port  Sys_Name          Type      Size      Alias                 Signature   Partitions  Model
+NAS_HOST   1     /dev/sda          HDD:spare 465.76 GB 3.5" SATA HDD 1       --          5           WDC WD5000AAKX-22ERMA0
+NAS_HOST   2     /dev/sdb          HDD:data  1.82 TB   3.5" SATA HDD 2       QNAP FLEX   5           Seagate ST2000VN000-1HJ164
+NAS_HOST   3     /dev/sdc          HDD:data  465.76 GB 3.5" SATA HDD 3       QNAP FLEX   5           WDC WD5003ABYZ-011FA0
+NAS_HOST   4     /dev/sdd          HDD:data  465.76 GB 3.5" SATA HDD 4       QNAP FLEX   5           WDC WD5003ABYZ-011FA0

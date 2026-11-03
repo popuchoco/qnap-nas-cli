@@ -8,7 +8,7 @@ from .client import QtsClient
 from .config import Config
 from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
-from .ssh_backend import tailscale_status
+from .ssh_backend import disk_topology, raid_status, service_status, smart_attributes, tailscale_status
 
 
 SYSINFO_PATH = "/cgi-bin/management/manaRequest.cgi"
@@ -164,3 +164,19 @@ def validate_dump(directory: Path) -> Dict[str, Any]:
 
 def tailscale(config: Config) -> Dict[str, Any]:
     return tailscale_status(config)
+
+
+def raid(config: Config) -> Dict[str, Any]:
+    return raid_status(config)
+
+
+def smart_details(config: Config, disk: int) -> Dict[str, Any]:
+    return smart_attributes(config, disk)
+
+
+def disks_ssh(config: Config) -> Dict[str, Any]:
+    return disk_topology(config)
+
+
+def services(config: Config) -> Dict[str, Any]:
+    return service_status(config)

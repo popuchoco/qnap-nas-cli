@@ -10,7 +10,7 @@
 
 ## Backends
 
-The web backend uses documented QTS authentication and narrowly scoped CGI reads. The SSH backend invokes only fixed commands through the system OpenSSH client with batch authentication. A future local backend may execute the same fixed probes directly on a NAS.
+The web backend uses documented QTS authentication and narrowly scoped CGI reads. The SSH backend invokes only fixed argv through the system OpenSSH client with batch authentication; it never invokes a shell. An explicit identity-file path may be stored in config, but key material and passphrases are not. A future local backend may execute the same fixed probes directly on a NAS.
 
 QTS does not expose one stable public system-health API across every model and firmware. Parser fixtures and redacted dumps are therefore part of the compatibility contract.
 
@@ -43,3 +43,5 @@ A future modifying command must provide all of the following before release:
 5. Post-change verification.
 6. Recovery instructions when the connection is lost.
 7. Unit fixtures and a real-device result.
+
+Initial mutation candidates are limited to reversible service start/stop and non-destructive notification or configuration changes. A candidate also requires a verified second administrator account and an independent recovery route. RAID rebuild, SMART repair, disk writes, and broad firewall changes are excluded from early releases.

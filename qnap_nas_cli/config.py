@@ -25,6 +25,7 @@ class Config:
     ssh_host: Optional[str] = None
     ssh_user: Optional[str] = None
     timeout: int = 15
+    ssh_identity_file: Optional[str] = None
 
     def validate(self) -> "Config":
         parsed = urlparse(self.origin)
@@ -48,7 +49,7 @@ def load_config(path: Optional[Path] = None) -> Config:
         raise QtsError("尚未設定 NAS；請先執行 qts setup") from exc
     except (OSError, ValueError) as exc:
         raise QtsError("無法讀取設定檔 {}：{}".format(target, exc)) from exc
-    allowed = {"origin", "username", "insecure", "ssh_host", "ssh_user", "timeout"}
+    allowed = {"origin", "username", "insecure", "ssh_host", "ssh_user", "timeout", "ssh_identity_file"}
     return Config(**{key: value for key, value in raw.items() if key in allowed}).validate()
 
 
