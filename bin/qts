@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from qnap_nas_cli.cli import main
+
+raise SystemExit(main())

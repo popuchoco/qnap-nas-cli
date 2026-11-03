@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qnap-nas-cli"
+version = "0.1.0"
+description = "A safety-first, zero-dependency CLI and MCP server for QNAP QTS NAS diagnostics"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "popuchoco" }]
+keywords = ["qnap", "qts", "nas", "cli", "mcp", "diagnostics"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+qts = "qnap_nas_cli.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["qnap_nas_cli*"]
