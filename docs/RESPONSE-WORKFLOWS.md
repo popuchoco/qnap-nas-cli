@@ -12,6 +12,20 @@ This document distinguishes **device health**, **known indicators**, and **proof
 
 `remediation.py` implements this contract and has fake-adapter tests for confirmation, state drift, readback and stop-on-failure. No real QTS action is registered, so CLI plans currently have `status: refused`; `repair apply` cannot change a NAS. Every future mutation adapter must pass explicit gates before registration: a reviewed QTS API/SSH and dry-run contract for the named model/firmware; idempotency analysis; concrete failure and recovery steps; live tests including failure/readback cases; and confirmation of a second administrator plus an independent recovery/management path. These are required in addition to the plan/apply confirmation flow, not substitutes for it.
 
+### Idempotency and replay contract
+
+- A plan is bound to the observed `before` state, device identity, 15-minute expiry and exact `plan_id`. It is not a reusable command token.
+- Replaying a successfully applied plan observes a different current state and returns `stale_plan`; the adapter is not called twice. This is deliberate at-most-once behavior rather than treating replay as another success.
+- If transport fails after QTS may have accepted an operation, the engine reads state once and returns `partial_failure` with `observed_after` and rescue guidance. Even when the desired state is observed, it does not invent a successful response.
+- A later retry requires a new observation and a new plan. An adapter must separately prove that its underlying QTS operation is convergent (`target → target` has no additional side effect), because plan-level replay protection cannot prove endpoint idempotency.
+- Multi-step plans stop at the first stale read, operation error or failed readback. Automatic rollback is forbidden until the inverse operation has its own model/firmware evidence and failure analysis.
+
+### Recovery-readiness proof
+
+Text in a plan is not proof. Before any production adapter can return `ready`, the maintenance record must show that, during the current window: (1) a distinct administrator account logged in successfully; (2) a LAN or physical management route that does not depend on the target service was exercised; (3) the operator knows which QTS App Center action restores the exact service; and (4) post-recovery `services`, `health` and `raid` observations can be collected. Tailscale on the NAS is not an independent route when Tailscale itself or its subnet routing is the mutation target. An untested account, saved password, ordinary client path through the same VPN, or a promise of later physical access does not satisfy this gate.
+
+The current TS-431K result is recorded in [LIVE-DRY-RUN-TS431K.md](LIVE-DRY-RUN-TS431K.md).
+
 ## Suspected ransomware: scan → contain → preserve → rescue/recover
 
 ### Scan

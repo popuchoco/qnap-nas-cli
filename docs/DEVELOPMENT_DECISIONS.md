@@ -51,3 +51,7 @@ Read-only coverage and real fixtures come first. The first mutations, if impleme
 ## ADR-013 — QNAP-specific output remains unknown until proven
 
 The TS-431K fixture contains QNAP system arrays with `[128/3]` member maps. Their underscores are not interpreted as ordinary Linux md failures; the parser preserves the map and reports unknown semantics. Empty `get_hd_smartinfo` output is reported as firmware-unavailable, not healthy. QPKG `Enable` and `Status=complete` are package metadata and do not prove daemon or workload health.
+
+## ADR-014 — Plan replay is at-most-once, not idempotency proof
+
+A completed plan cannot be replayed as another success: its before-state has changed, so apply stops as `stale_plan` before invoking the adapter again. An ambiguous transport failure remains `partial_failure` even if readback sees the target state. Retrying requires a fresh observation and plan. This prevents accidental duplicate action, but each future QTS adapter must still prove that its endpoint is convergent and document side effects; engine-level replay protection is not evidence that a vendor operation is idempotent. A second administrator and independent recovery path are accepted only after a live login and route exercise in the current maintenance window.

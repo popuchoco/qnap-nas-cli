@@ -85,6 +85,47 @@ class RemediationTest(unittest.TestCase):
         self.assertEqual(first.applied, 1)
         self.assertEqual(second.applied, 0)
 
+    def test_replaying_successful_plan_never_applies_twice(self):
+        handler = FakeHandler({"state": "stopped"})
+        plan = create_plan(self.device, "service-start", [{"operation": "service_start", "before": {"state": "stopped"}, "after": {"state": "running"}}])
+        kwargs = {
+            "device_reader": lambda context: self.device,
+            "precondition_checker": lambda candidate, context: True,
+        }
+        first = apply_plan(plan, plan["plan_id"], {"service_start": handler}, **kwargs)
+        second = apply_plan(plan, plan["plan_id"], {"service_start": handler}, **kwargs)
+        self.assertEqual(first["status"], "applied_and_verified")
+        self.assertEqual(second["status"], "stale_plan")
+        self.assertEqual(handler.applied, 1)
+
+    def test_operation_error_that_reaches_target_is_not_reported_as_success(self):
+        class ChangedThenErrored(FakeHandler):
+            def apply(self, operation, context):
+                self.applied += 1
+                self.state = dict(operation["after"])
+                raise RuntimeError("connection lost after request")
+        handler = ChangedThenErrored({"state": "running"})
+        plan = create_plan(
+            self.device, "service-stop",
+            [{"operation": "service_stop", "before": {"state": "running"}, "after": {"state": "stopped"}}],
+            recovery=["Use the independently verified management path."],
+        )
+        result = apply_plan(
+            plan, plan["plan_id"], {"service_stop": handler},
+            device_reader=lambda context: self.device,
+            precondition_checker=lambda candidate, context: True,
+        )
+        self.assertEqual(result["status"], "partial_failure")
+        self.assertEqual(result["steps"][0]["observed_after"], {"state": "stopped"})
+        self.assertTrue(result["recovery"])
+
+    def test_unavailable_service_plan_has_concrete_recovery_gate(self):
+        plan = unavailable_plan(self.device, "service-stop")
+        self.assertTrue(any("第二管理帳號" in item for item in plan["preconditions"]))
+        self.assertTrue(any("LAN" in item for item in plan["preconditions"]))
+        self.assertGreaterEqual(len(plan["recovery"]), 4)
+        self.assertTrue(any("App Center" in item for item in plan["recovery"]))
+
     def test_apply_requires_explicit_confirmation_device_and_preconditions(self):
         plan = create_plan(self.device, "service-stop", [{"operation": "service_stop", "before": {"state": "running"}, "after": {"state": "stopped"}}])
         with self.assertRaises(QtsError):

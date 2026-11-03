@@ -149,12 +149,38 @@ def unavailable_plan(device: Dict[str, Any], action: str) -> Dict[str, Any]:
         "raid-rebuild": ["停止自動化處置，先保存 SMART、RAID 與事件證據並聯絡 QNAP 支援；本 CLI 不執行 rebuild。"],
         "smart-repair": ["保存 SMART/系統告警並評估磁碟更換與備份；本 CLI 不會重設 SMART 或寫入磁碟。"],
     }.get(action, ["尚無此動作的已驗證處理程序。"])
+    recovery = {
+        "service-start": [
+            "保留目前 QTS 管理連線，不要在同一變更中調整網路、防火牆或 Tailscale。",
+            "若啟動後管理介面失去回應，改用已事前驗證的第二管理帳號從 NAS 所在 LAN 登入 QTS，於 App Center 停止該套件。",
+            "若 LAN 管理也失效，停止自動重試，使用已事前驗證的實體管理路徑／Qfinder Pro 找回 NAS，並依 QNAP 支援程序處理。",
+            "恢復後重新執行 qts services、qts health 與 qts raid；保存時間、plan_id 與觀察結果。",
+        ],
+        "service-stop": [
+            "停止前保留目前 QTS 管理連線，並確認被停服務不是目前唯一管理路徑、DNS、VPN subnet router 或備份路徑。",
+            "若停止造成依賴中斷，以已事前驗證的第二管理帳號從 NAS 所在 LAN 登入 QTS，在 App Center 重新啟動同一套件。",
+            "若 QTS 無法登入，停止自動重試，使用已事前驗證的實體管理路徑／Qfinder Pro；不要以 RAID、磁碟或防火牆操作嘗試救援。",
+            "恢復後重新執行 qts services、qts health 與 qts raid，並驗證原本依賴該服務的用戶端。",
+        ],
+        "notification-change": [
+            "變更前保存原通知設定與一個成功測試結果。",
+            "若新設定驗證失敗，由第二管理帳號登入 QTS 還原原值，再分別測試主要與備援通知管道。",
+            "若管理連線中斷，使用已事前驗證的 LAN／實體管理路徑；通知失敗本身不得觸發網路或防火牆變更。",
+        ],
+    }.get(action, [
+        "不要執行或重試此高風險操作；保存目前 health、RAID、SMART 與事件證據。",
+        "使用第二管理帳號與獨立 LAN／實體管理路徑確認 NAS 仍可管理，並依型號文件聯絡 QNAP 支援。",
+    ])
     return create_plan(
         device=device,
         action=action,
         operations=[],
-        preconditions=["已重新查詢狀態", "確認第二管理帳號與獨立復原路徑"],
-        recovery=["本計畫沒有執行任何操作；請使用 QTS UI／QNAP 支援依型號文件處理。"],
+        preconditions=[
+            "已重新查詢裝置身分與目標目前狀態",
+            "第二管理帳號已在本次維護窗口實際登入成功",
+            "不依賴待變更服務的 LAN／實體復原路徑已在本次維護窗口實際驗證",
+        ],
+        recovery=recovery,
         refusal_reason="沒有通過本機型與韌體實機驗證的 QTS mutation adapter；不產生猜測 API 或 shell 指令。",
         manual_steps=manual_steps,
     )
