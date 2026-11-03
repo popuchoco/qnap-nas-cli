@@ -7,6 +7,16 @@
 
 目前是 `0.1.0` 初始版本，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
+## 目前狀態
+
+- 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
+- 18 項離線測試、Python bytecode compilation、CLI smoke test 與 wheel build 均已通過。
+- GitHub Actions 已在 Python 3.8、3.12、3.13 完成驗證：[成功的 CI run](https://github.com/popuchoco/qnap-nas-cli/actions/runs/41594356258)。
+- CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
+- QTS response parser 目前使用離線 fixture 驗證；TS-431K 實機 dump 與 live smoke test 尚未完成，因此會明確保留 `unknown`，不把缺少欄位誤判為健康。
+
+維護者：`popuchoco <p.choco@daum.net>`
+
 ## 功能
 
 - `setup`：保存 HTTPS、帳號與選用的 SSH 主機；不保存密碼。
@@ -148,7 +158,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q qnap_nas_cli
 ```
 
-CI 在 Python 3.8、3.12 與 3.13 執行離線測試。Live smoke test 不會在公開 CI 使用真實 NAS credential。
+CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 wheel 建置。固定 runner 的理由是 Ubuntu 26 已無 Python 3.8 toolcache。Live smoke test 不會在公開 CI 使用真實 NAS credential。
 
 ## Roadmap
 
