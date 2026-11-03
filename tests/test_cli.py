@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from pathlib import Path
 
@@ -20,6 +21,11 @@ class CliTest(unittest.TestCase):
         result = _doctor(Config("http://127.0.0.1:8080", "ops"), Path("custom.json"))
         self.assertEqual(result["config"], "custom.json")
         self.assertTrue(result["safe"])
+
+    def test_doctor_does_not_treat_empty_password_as_available(self):
+        with patch.dict("os.environ", {"QTS_PASSWORD": ""}, clear=False):
+            result = _doctor(Config("https://nas.example", "ops"), Path("custom.json"))
+        self.assertFalse(result["password_available"])
 
 
 if __name__ == "__main__":

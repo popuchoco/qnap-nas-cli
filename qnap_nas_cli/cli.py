@@ -99,7 +99,7 @@ def _doctor(config: Config, config_path: Optional[Path] = None) -> Dict[str, Any
         "origin": config.origin,
         "username": config.username,
         "tls_verification": not config.insecure,
-        "password_available": password_from_environment() is not None,
+        "password_available": bool(password_from_environment()),
         "ssh_configured": bool(config.ssh_host and config.ssh_user),
         "ssh_executable": shutil.which("ssh") is not None,
         "safe": (config.origin.startswith("https://") and not config.insecure) or local_http,
