@@ -24,6 +24,7 @@ class CommandsTest(unittest.TestCase):
         self.assertEqual(result["observations"]["system"]["model"], "TS-X41")
         disks = result["observations"]["storage"]["disks"]
         self.assertEqual([disk["disk"] for disk in disks], ["1", "2", "3", "4"])
+        self.assertEqual([disk["locator"] for disk in disks], ["0:1", "0:2", "0:3", "0:4"])
         self.assertEqual(disks[1]["model"], "ST2000VN000-1HJ164")
         self.assertEqual(disks[1]["smart"], "Normal")
 
@@ -65,6 +66,8 @@ class CommandsTest(unittest.TestCase):
         self.assertEqual(report["status"], "indeterminate")
         self.assertIsNone(report["healthy"])
         self.assertIn("storage_scope_unverified", {item["code"] for item in report["unknowns"]})
+        self.assertEqual(report["healthy_claim"], "not_permitted")
+        self.assertIn("不能據此宣告 Storage healthy", report["storage"]["limitations"][0])
 
     def test_validate_dump_reports_unknown_code_without_inventing_status(self):
         with tempfile.TemporaryDirectory() as directory:

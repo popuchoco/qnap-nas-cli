@@ -34,7 +34,7 @@ Every JSON-RPC line starts with a fresh null request ID. Parse errors use code `
 
 ## ADR-009 — QTS 2FA remains ephemeral
 
-QTS 5.x may accept the password phase while withholding a SID and returning `need_2_step_verification=1`. The client supports the documented `security_code` field with `dont_verify_2sv_again=0`; it does not request a persistent bypass token. `QTS_SECURITY_CODE` is process-only and is never written to config, dumps, logs, or fixtures.
+QTS 5.x may accept the password phase while withholding a SID and returning `need_2_step_verification=1`. The client supports the documented `security_code` field with `dont_verify_2sv_again=0`; it does not request a persistent bypass token. Interactive CLI prompts only after that response. Automation and MCP use process-only `QTS_SECURITY_CODE`; it is never written to config, dumps, logs, or fixtures.
 
 ## ADR-010 — Storage evidence is merged, not overclaimed
 

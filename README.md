@@ -58,7 +58,7 @@ QTS 應使用有效 HTTPS 憑證。`--insecure` 只適合受信任區網內的�
 qts setup --origin https://192.0.2.10 --user ops \
   --ssh-host 192.0.2.10 --ssh-user ops
 
-# 互動式輸入密碼
+# 互動式輸入密碼；若帳號啟用 2FA，CLI 會接著提示 TOTP
 qts status
 qts health
 qts storage --json
@@ -76,7 +76,7 @@ qts dump qts-dump
 qts fixture validate qts-dump --json
 ```
 
-若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。密碼與 2FA 驗證碼不接受命令列參數，也不會寫入設定檔。`QTS_SECURITY_CODE` 是短效 TOTP，應由秘密管理工具即時注入。
+若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。互動終端在 QTS 回報需要 2FA 時才提示 TOTP；非互動與 MCP 必須注入 `QTS_SECURITY_CODE`。密碼與驗證碼不接受命令列參數，也不會寫入設定檔。
 
 ## MCP
 
@@ -109,6 +109,8 @@ MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 - `status: healthy`／`healthy: true`：必要狀態完整，而且觀察值沒有已知異常。
 - `status: unhealthy`／`healthy: false`：存在已知異常，例如 degraded Volume、明確 SMART warning 或過熱。
 - `status: indeterminate`／`healthy: null`：資料缺少、`vol_status=0`、未知狀態碼，或 parser 沒找到必要記錄。
+
+當結果為 `indeterminate` 時也會輸出 `healthy_claim: not_permitted`；這不是「可能健康」的捷徑，而是明確表示目前證據不足、不能宣告 healthy。Storage 的 `limitations` 會列出未驗證的 volume coverage 與 SMART 深度限制。
 
 已知異常放在 `findings`；資料不足放在 `unknowns`。兩者不互相替代。原始 `status_code` 仍保留，方便用真實 fixture 校準新韌體。
 

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs
 
 from qnap_nas_cli.client import QtsClient
 from qnap_nas_cli.config import Config
-from qnap_nas_cli.errors import AuthenticationError
+from qnap_nas_cli.errors import AuthenticationError, TwoFactorRequired
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,7 +69,7 @@ class ClientTest(unittest.TestCase):
         success = b"<QDocRoot><authPassed>1</authPassed><authSid>twofactor</authSid></QDocRoot>"
         client = self.client()
         with patch.object(client, "_open", return_value=needs_2fa):
-            with self.assertRaises(AuthenticationError) as caught:
+            with self.assertRaises(TwoFactorRequired) as caught:
                 client.login("secret")
         self.assertIn("2FA", str(caught.exception))
         with patch.object(client, "_open", return_value=success) as opened:

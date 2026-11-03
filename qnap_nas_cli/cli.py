@@ -10,7 +10,7 @@ from . import __version__
 from .client import QtsClient
 from .commands import dump, health, network, storage, sysinfo, tailscale, validate_dump
 from .config import Config, default_config_path, load_config, password_from_environment, save_config
-from .errors import QtsError
+from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 
 
@@ -81,6 +81,15 @@ def _security_code() -> Optional[str]:
     return value or None
 
 
+def _prompt_security_code() -> str:
+    if not sys.stdin.isatty():
+        raise TwoFactorRequired("QTS 帳號需要 2FA；非互動模式請設定當下的 QTS_SECURITY_CODE")
+    value = getpass.getpass("QTS security code: ").replace(" ", "").strip()
+    if not value:
+        raise TwoFactorRequired("QTS 2FA 驗證碼不可為空")
+    return value
+
+
 def _print(value: Any, json_output: bool) -> None:
     if json_output:
         print(json.dumps(value, ensure_ascii=False, indent=2))
@@ -143,7 +152,12 @@ def main(argv: Optional[list] = None) -> int:
             "network": network,
         }
         with QtsClient(config) as client:
-            client.login(_password(), _security_code())
+            password = _password()
+            security_code = _security_code()
+            try:
+                client.login(password, security_code)
+            except TwoFactorRequired:
+                client.login(password, _prompt_security_code())
             if args.command == "whoami":
                 data = sysinfo(client)
                 value = {"username": config.username, "hostname": data.get("hostname"), "model": data.get("model"), "origin": config.origin}

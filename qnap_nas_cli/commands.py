@@ -37,6 +37,10 @@ def storage(client: QtsClient) -> Dict[str, Any]:
         "coverage": "unverified",
         "additional_endpoints": [SYSINFO_PATH, SMART_PATH],
     }
+    result["limitations"] = [
+        "extra_vol_index=1 尚未證明涵蓋全部 pool/volume；不能據此宣告 Storage healthy",
+        "qsmart.cgi 只提供頂層 Health；不涵蓋完整 SMART attributes 與歷史 I/O errors",
+    ]
     return result
 
 
@@ -93,6 +97,7 @@ def health(client: QtsClient) -> Dict[str, Any]:
         "findings": findings,
         "unknowns": unknowns,
         "note": "healthy 只代表已觀察欄位沒有異常且必要狀態完整；indeterminate 代表資料不足。",
+        "healthy_claim": "not_permitted" if unknowns else "permitted",
     }
 
 

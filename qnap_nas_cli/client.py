@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Optional
 
 from .config import Config
-from .errors import AuthenticationError, CompatibilityError, QtsError
+from .errors import AuthenticationError, CompatibilityError, QtsError, TwoFactorRequired
 
 
 AUTH_PATH = "/cgi-bin/authLogin.cgi"
@@ -68,7 +68,7 @@ class QtsClient:
         if _xml_text(root, "authPassed") != "1":
             needs_2fa = _xml_text(root, "need_2_step_verification") == "1" or _xml_text(root, "need_2sv") == "1"
             if needs_2fa and not security_code:
-                raise AuthenticationError("QTS 帳號需要 2FA；請設定當下的 QTS_SECURITY_CODE 後重試")
+                raise TwoFactorRequired("QTS 帳號需要 2FA")
             if needs_2fa and security_code:
                 raise AuthenticationError("QTS 2FA 驗證失敗；請確認驗證碼與 NAS 時間")
             code = _xml_text(root, "errorValue") or "unknown"
