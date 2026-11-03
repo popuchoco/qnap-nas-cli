@@ -1,14 +1,15 @@
 import unittest
 
 from qnap_nas_cli.config import Config
-from qnap_nas_cli.mcp import TOOLS, handle_line, response
+from qnap_nas_cli.mcp import TOOLS, call_tool, handle_line, response
+from qnap_nas_cli.errors import QtsError
 
 
 class McpTest(unittest.TestCase):
     config = Config("http://127.0.0.1:8080", "test")
     def test_tools_are_read_only_named(self):
         names = {tool["name"] for tool in TOOLS}
-        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_disk_topology", "qts_services"})
+        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_disk_topology", "qts_services", "qts_incident"})
 
     def test_json_rpc_response(self):
         self.assertEqual(response(7, result={"ok": True})["id"], 7)
@@ -30,6 +31,14 @@ class McpTest(unittest.TestCase):
 
     def test_notification_has_no_response(self):
         self.assertIsNone(handle_line('{"jsonrpc":"2.0","method":"ping"}', self.config))
+
+    def test_storage_and_incident_arguments_are_bounded_before_network_access(self):
+        with self.assertRaises(QtsError):
+            call_tool(self.config, "qts_storage", {"volume_indices": [0]})
+        with self.assertRaises(QtsError):
+            call_tool(self.config, "qts_incident", {"max_items": 100001})
+        with self.assertRaises(QtsError):
+            call_tool(self.config, "qts_incident", {"apply": True})
 
 
 if __name__ == "__main__":

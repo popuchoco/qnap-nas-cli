@@ -1,13 +1,17 @@
 import base64
+import hashlib
+import io
+import tempfile
 import threading
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
 from qnap_nas_cli.client import QtsClient
 from qnap_nas_cli.config import Config
-from qnap_nas_cli.errors import AuthenticationError, TwoFactorRequired
+from qnap_nas_cli.errors import AuthenticationError, QtsError, TwoFactorRequired
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -77,6 +81,54 @@ class ClientTest(unittest.TestCase):
         fields = parse_qs(opened.call_args.args[0].data.decode("ascii"))
         self.assertEqual(fields["security_code"], ["123456"])
         self.assertEqual(fields["dont_verify_2sv_again"], ["0"])
+
+    def test_download_streams_selected_file_and_returns_hash(self):
+        client = self.client()
+        client.sid = "abc123"
+        body = b"sample-data"
+        class Response(io.BytesIO):
+            headers = {"Content-Length": str(len(body)), "Content-Type": "application/octet-stream"}
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                self.close()
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "sample.deadbolt"
+            with patch("qnap_nas_cli.client.urllib.request.urlopen", return_value=Response(body)) as opened:
+                metadata = client.download_file("/Public", "sample.deadbolt", target)
+            self.assertEqual(target.read_bytes(), body)
+            self.assertEqual(metadata["sha256"], hashlib.sha256(body).hexdigest())
+            request = opened.call_args.args[0]
+            self.assertIn("source_path=%2FPublic", request.full_url)
+
+    def test_download_limit_rejects_and_cleans_partial_file(self):
+        client = self.client()
+        client.sid = "abc123"
+        class Response(io.BytesIO):
+            headers = {"Content-Type": "application/octet-stream"}
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                self.close()
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "large.bin"
+            with patch("qnap_nas_cli.client.urllib.request.urlopen", return_value=Response(b"12345")):
+                with self.assertRaises(QtsError):
+                    client.download_file("/Public", "large.bin", target, max_bytes=2)
+            self.assertFalse(target.exists())
+
+    def test_download_rejects_path_traversal_and_existing_local_file(self):
+        client = self.client()
+        client.sid = "abc123"
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "sample.txt"
+            target.write_text("keep", encoding="utf-8")
+            with self.assertRaises(QtsError):
+                client.download_file("/Public/../secret", "sample.txt", target)
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+            with self.assertRaises(QtsError):
+                client.download_file("/Public", "sample.txt", target)
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
 
 
 if __name__ == "__main__":

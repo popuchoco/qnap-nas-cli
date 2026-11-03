@@ -22,7 +22,7 @@ The machine-readable `healthy_claim` field is `not_permitted` whenever evidence 
 
 The storage parser retains raw QTS status codes and adds explicit semantics (`known_good`, `known_bad`, or `unknown`). New codes remain unknown until a real, reviewed fixture establishes their meaning.
 
-Volume discovery uses `extra_get` with `extra_vol_index=1`, whose coverage remains explicitly unverified. Disk evidence merges flat bay observations from sysinfo with `qsmart.cgi?func=all_hd_data`; enclosure locators such as `0:2` are normalized to bay `2` while the raw locator is retained. Top-level SMART Health is evidence, not proof that every attribute and historical QTS warning is clear.
+Volume queries use `extra_get` with `extra_vol_index=1` by default; CLI/MCP can query explicitly supplied indices, but there is no verified index-discovery contract and coverage remains unverified. Disk evidence merges flat bay observations from sysinfo with `qsmart.cgi?func=all_hd_data`; enclosure locators such as `0:2` are normalized to bay `2` while the raw locator is retained. Top-level SMART Health is evidence, not proof that every attribute and historical QTS warning is clear. Deduplication canonicalizes nested mappings to avoid relying on insertion order.
 
 ## Fixture contract
 
@@ -45,3 +45,11 @@ A future modifying command must provide all of the following before release:
 7. Unit fixtures and a real-device result.
 
 Initial mutation candidates are limited to reversible service start/stop and non-destructive notification or configuration changes. A candidate also requires a verified second administrator account and an independent recovery route. RAID rebuild, SMART repair, disk writes, and broad firewall changes are excluded from early releases.
+
+The repository now contains `remediation.py`, a fail-closed plan/apply engine. Plans include device identity, creation/expiry timestamps, canonical SHA-256 `plan_id`, before/after state, explicit preconditions and recovery notes. Applying requires a matching ID, a device identity reader, a passing precondition checker, registered action adapters, an unchanged pre-state, and a successful per-step readback. A mismatch stops the sequence; the engine does not guess rollback behavior. CLI production has no registered mutation adapter today: `qts repair plan` emits a refused/manual-only plan and `qts repair apply` refuses it. This deliberately exercises the workflow without pretending a QNAP mutation endpoint has been verified.
+
+## Incident workflow
+
+`incident.py` is a bounded read-only scan using File Station `get_tree`/`get_list`. It traverses visible shared folders with configurable total-item cap (default 10,000, hard maximum 100,000) and fixed depth cap (12). It checks a small, explicit set of known names: `.deadbolt`, the Qlocker note `!!!READ_ME.txt`, and a low-confidence large `.7z` cluster. This is not behavior analytics, process inspection, content scanning, general malware detection, or proof of no infection. No hit remains `indeterminate`; inaccessible paths, parser issues, unreported totals, depth/item caps are visible as partial coverage.
+
+`qts incident contain` emits operator steps only. It does not stop processes, modify firewall/QPKG state, or change shares. `evidence` writes a local report and SHA-256 manifest into a new directory. `rescue` can stream-copy only a report-listed IOC example to a new local directory with a byte cap and digest; full file recovery must use independently validated offline/immutable backups after containment and trusted rebuild. Neither workflow deletes, decrypts, or writes to the NAS. The current scan path has no real-device fixture yet, so first use on each supported QTS/model requires review of redacted response fixtures and live read-only validation.

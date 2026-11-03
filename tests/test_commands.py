@@ -3,7 +3,8 @@ import xml.etree.ElementTree as ET
 import tempfile
 from pathlib import Path
 
-from qnap_nas_cli.commands import health, validate_dump
+from qnap_nas_cli.commands import health, storage, validate_dump
+from qnap_nas_cli.errors import QtsError
 
 
 class FakeClient:
@@ -17,6 +18,30 @@ class FakeClient:
 
 
 class CommandsTest(unittest.TestCase):
+    def test_storage_queries_explicit_volume_indices_without_claiming_full_coverage(self):
+        class IndexedClient(FakeClient):
+            def __init__(self):
+                self.indices = []
+            def get_xml(self, path, params):
+                if "extra_vol_index" in params:
+                    self.indices.append(int(params["extra_vol_index"]))
+                    return ET.fromstring("<QDocRoot><volume><volume_name>DataVol{}</volume_name><vol_status>-7</vol_status></volume></QDocRoot>".format(params["extra_vol_index"]))
+                if "disk_manage" in path:
+                    return ET.fromstring("<QDocRoot/>")
+                if "qsmart" in path:
+                    return ET.fromstring("<QDocRoot/>")
+                return ET.fromstring("<QDocRoot><modelName>TS-431K</modelName></QDocRoot>")
+        client = IndexedClient()
+        result = storage(client, [1, 2, 2])
+        self.assertEqual(client.indices, [1, 2])
+        self.assertEqual(result["source"]["extra_vol_indices"], [1, 2])
+        self.assertEqual(result["source"]["coverage"], "unverified")
+        self.assertEqual([v["name"] for v in result["volumes"]], ["DataVol1", "DataVol2"])
+
+    def test_storage_rejects_out_of_range_volume_index(self):
+        with self.assertRaises(QtsError):
+            storage(FakeClient(), [0])
+
     def test_reviewed_ts431k_fixture(self):
         fixture = Path(__file__).parent / "fixtures" / "ts431k-qts-5.2.8-build-20251216"
         result = validate_dump(fixture)

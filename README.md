@@ -10,7 +10,7 @@
 ## 目前狀態
 
 - 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
-- 42 項離線測試、Python bytecode compilation、CLI smoke test與 wheel build 均已通過。
+- 68 項離線測試、Python bytecode compilation 與 CLI smoke test 均已通過；新增的 incident／repair 路徑仍未在 QNAP 實機驗證。
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
@@ -22,8 +22,8 @@
 - `setup`：保存 HTTPS、帳號與選用的 SSH 主機；不保存密碼。
 - `doctor`／`whoami`：檢查本機條件並驗證 QTS 登入。
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
-- `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談。
-- `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要。
+- `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談，回報使用中的通用溫度門檻。
+- `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要；可重複指定 `--volume-index N`，但尚無 endpoint 可證明全部 index 已查齊。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：從已驗證的 QPKG 安裝路徑執行固定的 `tailscale status --json`。
 - `raid`：直接讀取並解析 `/proc/mdstat`，標示 degraded、member state 與 recovery/resync 進度；QNAP 128-wide bitmap 保守標為未知語義。
@@ -32,10 +32,15 @@
 - `services`：唯讀觀察 Container Station／Tailscale QPKG metadata，不把 `Status=complete` 誤稱為 daemon 正常運行。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
-- `mcp`：提供八個唯讀 stdio MCP tools。
+- `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation。
+- `incident contain`：由 report 產生人工網路隔離／取證清單；不改 NAS 防火牆或停止程序。
+- `incident evidence`：保存 report 到新的本機目錄並寫 SHA-256 manifest；不宣稱包含 NAS 原始日誌。
+- `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
+- `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
+- `mcp`：提供九個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
-本版不提供 RAID 重建、SMART 修復、Container Station 停止、Tailscale 重啟或防火牆修改。這些操作必須先有 TS-431K 實機契約測試、dry-run 計畫、前後狀態驗證與回復程序。
+本版不提供 RAID 重建、SMART 修復、Container Station 停止、Tailscale 重啟、惡意程序 suspend/kill、QTS 防火牆修改、惡意檔案刪除或 NAS 上直接還原。通用 plan/apply 執行引擎可由測試用 adapter 驗證，但正式 adapter 必須先有指定機型／韌體的實機契約測試、前置條件與第二管理路徑、before/after readback、失敗中止與回復程序。
 
 ## 安裝
 
@@ -67,11 +72,24 @@ qts setup --origin https://192.0.2.10 --user ops \
 qts status
 qts health
 qts storage --json
+qts storage --volume-index 1 --volume-index 2 --json
 qts network
 qts raid --json
 qts disk-topology --json
 qts smart-details 2 --json
 qts services --json
+
+# 勒索事件：有限掃描，並建立本機 evidence bundle
+qts incident scan --max-items 10000 --evidence-dir case-2026-01 --json
+qts incident contain case-2026-01/incident.json --json
+qts incident rescue case-2026-01/incident.json --json
+# 只有在要匯出 report 已列出的 IOC 範例檔時才提供 candidate path。
+# 匯出到全新的本機目錄，預設上限 100 MiB；不是 NAS restore。
+qts incident rescue case-2026-01/incident.json --candidate-path '/Public/!!!READ_ME.txt' --directory case-sample
+
+# 一般修復流程目前只會建立明確拒絕執行的計畫，不會修改 NAS
+qts repair plan --action service-stop --output qts-repair-plan.json --json
+qts repair apply qts-repair-plan.json --confirm '<plan_id>' --json
 
 # 自動化或 MCP；不要把密碼寫進 shell history
 QTS_PASSWORD='...' qts --json health
@@ -111,6 +129,7 @@ qts fixture validate qts-dump --json
 - `qts_raid`
 - `qts_disk_topology`
 - `qts_services`
+- `qts_incident`（有限名稱 IOC 掃描；assessment 不會回報 clean）
 
 MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 
@@ -125,6 +144,8 @@ MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 當結果為 `indeterminate` 時也會輸出 `healthy_claim: not_permitted`；這不是「可能健康」的捷徑，而是明確表示目前證據不足、不能宣告 healthy。Storage 的 `limitations` 會列出未驗證的 volume coverage 與 SMART 深度限制。
 
 已知異常放在 `findings`；資料不足放在 `unknowns`。兩者不互相替代。原始 `status_code` 仍保留，方便用真實 fixture 校準新韌體。
+
+Volume 可用 `--volume-index` 重複指定，也可在 MCP `qts_storage`／`qts_health` 傳 `volume_indices`；預設仍為 index 1。沒有經實機核對的 index discovery API，因此即使查了多個 index，coverage 一樣是 `unverified`。系統 70°C、磁碟 55°C 是報告揭露的 generic default，不是經各機型校正的安全界線。
 
 Volume 查詢目前固定使用 `func=extra_get&extra_vol_index=1`，回應仍標記 `source.coverage: unverified`。磁碟則合併 `manaRequest.cgi` 的 bay／溫度與 `qsmart.cgi?func=all_hd_data` 的型號、容量、序號遮蔽值與頂層 Health。TS-431K 實機的 `vol_status=0` 尚未有足夠證據映射成 healthy，因此整體仍為 `indeterminate`。
 
@@ -143,6 +164,19 @@ qts fixture validate qts-dump-ts431k --json
 ```
 
 `dump` v2 會保存 `sysinfo.xml`、`storage.xml`、`smart.xml` 與版本化 manifest。提交 fixture 前仍應人工檢查內容；驗證通過只代表結構可解析，不代表 NAS 健康。已審查的實機資料位於 `tests/fixtures/ts431k-qts-5.2.8-build-20251216`，手寫 XML 只用於 edge cases。
+
+## Incident / repair 工作流（目前為受限 v1）
+
+`qts incident scan` 使用 QNAP File Station API 的 `get_tree`／`get_list` 做 bounded read-only inventory：最多掃描 100,000 個項目、深度 12；預設 10,000。僅掃描登入帳號可見的共享資料夾名稱，不讀內容、不掃程序／行為／系統日誌，也不代表完整 filesystem coverage。已知規則包含 `.deadbolt`、Qlocker 的 `!!!READ_ME.txt`，以及大量 `.7z` 的低信心群聚；Qlocker 曾以 `.7z` 加密/封存並生成 ransom note，DeadBolt 使用 `.deadbolt` 副檔名。[QNAP 的 Qlocker 說明](https://www.qnap.com/static/landing/2021/qlocker/response/en/)、[QSA-22-02](https://www.qnap.com/en-us/security-advisory/qsa-22-02)。無命中永遠回 `indeterminate`，不回 `clean`；命中代表疑似而非確診。
+
+應變分工：
+
+1. **scan**：保存有限掃描、health、可用的 RAID/QPKG observation 與 coverage gaps。
+2. **contain**：只輸出人工步驟，建議從 router/switch 限制外部與不必要用戶端流量，同時保留受控管理／取證路徑；不自動更改 NAS firewall 或 stop process。
+3. **evidence**：建立全新本機目錄、保存 JSON report 和 SHA-256 manifest。`rescue --candidate-path` 只可匯出 report 已列出的 IOC 範例，使用串流與大小上限，另算 SHA-256；不執行檔案、不傳回 NAS。
+4. **rescue**：全量資料復原仍需先遏止、可信任重建與修補，再由離線／不可變備份恢復至新位置、驗證後切換；本 CLI 不會在疑似受感染 NAS 上覆寫還原。若疑似正在進行 Qlocker 活動，QNAP 的事件說明明確要求不要關機／重開機，並聯絡 QNAP 支援；家族與韌體不同時應以對應官方公告為準。[QNAP Qlocker incident guidance](https://www.qnap.com/static/landing/2021/qlocker/response/en/)
+
+一般 `repair plan/apply` 的 code contract 已定義：計畫有 15 分鐘有效期與 hash `plan_id`；apply 要求逐字確認、裝置身分相同、前置條件已核對，每一步重新讀取 before state，操作後 readback 驗證，失敗即停止後續步驟。CLI 目前只輸出 `refused` plan，因為 QNAP 寫入 API/SSH 動作尚未通過實機測試；因此這不是可以改 NAS 的功能預告，而是安全框架先行。
 
 ## 架構參考與設計來源
 
@@ -197,7 +231,7 @@ Web 後端適合 QTS 通用資料；SSH 後端只用於 Web API 無法可靠提�
 - `dump` 預設遮蔽 hostname、序號、介面 IP、netmask、MAC 與 DNS。
 - MCP 無通用 `api_call`、shell、刪除或修復工具。
 
-詳見 [SECURITY.md](SECURITY.md) 與 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+詳見 [SECURITY.md](SECURITY.md)、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 與 [docs/RESPONSE-WORKFLOWS.md](docs/RESPONSE-WORKFLOWS.md)。
 
 ## 測試
 

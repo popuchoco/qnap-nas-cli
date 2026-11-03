@@ -1,11 +1,12 @@
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
 from .client import QtsClient
 from .config import Config
+from .errors import QtsError
+from .incident import DEFAULT_MAX_ITEMS, response_plan, scan_ransomware_artifacts
 from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
 from .ssh_backend import disk_topology, raid_status, service_status, smart_attributes, tailscale_status
@@ -24,35 +25,50 @@ def network(client: QtsClient) -> Dict[str, Any]:
     return parse_network(client.get_xml(SYSINFO_PATH, {"subfunc": "sysinfo"}))
 
 
-def storage(client: QtsClient) -> Dict[str, Any]:
+def _volume_indices(indices: Any = None) -> list:
+    try:
+        values = [1] if indices is None else list(indices)
+    except TypeError as exc:
+        raise QtsError("volume index 必須是整數序列") from exc
+    if not values or len(values) > 32 or any(type(value) is not int or not 1 <= value <= 256 for value in values):
+        raise QtsError("volume index 必須是 1 到 256 的整數，且最多 32 個")
+    return list(dict.fromkeys(values))
+
+
+def storage(client: QtsClient, volume_indices: Any = None) -> Dict[str, Any]:
+    indices = _volume_indices(volume_indices)
+    volume_reports = [
+        parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": str(index)}))
+        for index in indices
+    ]
     result = merge_storage(
-        parse_storage(client.get_xml(DISK_PATH, {"func": "extra_get", "extra_vol_index": "1"})),
+        *volume_reports,
         parse_storage(client.get_xml(SYSINFO_PATH, {"subfunc": "sysinfo"})),
         parse_storage(client.get_xml(SMART_PATH, {"func": "all_hd_data"})),
     )
     result["source"] = {
         "endpoint": DISK_PATH,
         "func": "extra_get",
-        "extra_vol_index": 1,
+        "extra_vol_indices": indices,
         "coverage": "unverified",
         "additional_endpoints": [SYSINFO_PATH, SMART_PATH],
     }
     result["limitations"] = [
-        "extra_vol_index=1 尚未證明涵蓋全部 pool/volume；不能據此宣告 Storage healthy",
+        "已查詢的 extra_vol_index 尚未證明涵蓋全部 pool/volume；請逐項指定 index，仍不能據此宣告 Storage healthy",
         "qsmart.cgi 只提供頂層 Health；不涵蓋完整 SMART attributes 與歷史 I/O errors",
     ]
     return result
 
 
-def health(client: QtsClient) -> Dict[str, Any]:
+def health(client: QtsClient, volume_indices: Any = None) -> Dict[str, Any]:
     system = sysinfo(client)
-    result = storage(client)
+    result = storage(client, volume_indices)
     findings = []
     unknowns = []
     if result.get("source", {}).get("coverage") != "verified":
         unknowns.append({
             "code": "storage_scope_unverified",
-            "message": "extra_vol_index=1 的回應尚未經實機對照證明涵蓋全部 Storage",
+            "message": "指定的 extra_vol_index 回應尚未經實機對照證明涵蓋全部 Storage",
         })
     temp = system.get("temperature_c")
     if isinstance(temp, (int, float)) and temp >= 70:
@@ -92,6 +108,7 @@ def health(client: QtsClient) -> Dict[str, Any]:
         "healthy": healthy,
         "data_completeness": "partial" if unknowns else "complete",
         "checked_at": datetime.now(timezone.utc).isoformat(),
+        "thresholds": {"system_temperature_warning_c": 70, "disk_temperature_warning_c": 55, "profile": "generic_defaults_not_model_calibrated"},
         "system": system,
         "storage": result,
         "findings": findings,
@@ -180,3 +197,33 @@ def disks_ssh(config: Config) -> Dict[str, Any]:
 
 def services(config: Config) -> Dict[str, Any]:
     return service_status(config)
+
+
+def incident_report(client: QtsClient, config: Config, max_items: int = DEFAULT_MAX_ITEMS) -> Dict[str, Any]:
+    """Collect bounded file-name IOC triage plus independent health/SSH evidence."""
+    scan = scan_ransomware_artifacts(client, max_items=max_items)
+    observations = {}
+    errors = []
+    try:
+        observations["health"] = health(client)
+    except QtsError as exc:
+        errors.append({"source": "health", "error": str(exc)})
+    if config.ssh_host and config.ssh_user:
+        for name, operation in (("raid", raid_status), ("services", service_status)):
+            try:
+                observations[name] = operation(config)
+            except QtsError as exc:
+                errors.append({"source": name, "error": str(exc)})
+    else:
+        errors.append({"source": "ssh", "error": "SSH 未設定；略過 RAID 與 QPKG observation"})
+    report = {
+        "report_type": "qnap_incident_triage",
+        "format_version": 1,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "assessment": scan["assessment"],
+        "ransomware_scan": scan,
+        "observations": observations,
+        "collection_errors": errors,
+    }
+    report["response_plan"] = response_plan(scan)
+    return report

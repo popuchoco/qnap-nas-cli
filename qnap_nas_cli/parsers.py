@@ -1,4 +1,5 @@
 import re
+import json
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional
 
@@ -181,7 +182,9 @@ def _unique(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     result = []
     seen = set()
     for item in items:
-        key = tuple(sorted(item.items()))
+        # JSON canonicalization handles nested dict/list values and avoids
+        # depending on insertion order in firmware-derived mappings.
+        key = json.dumps(item, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
         if key not in seen:
             seen.add(key)
             result.append(item)

@@ -1,7 +1,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from qnap_nas_cli.parsers import merge_storage, parse_network, parse_storage, parse_system
+from qnap_nas_cli.parsers import _unique, merge_storage, parse_network, parse_storage, parse_system
 from qnap_nas_cli.redaction import redact_xml, redact_value
 
 
@@ -18,6 +18,13 @@ STORAGE = b"""<QDocRoot><volume><volume_name>DataVol1</volume_name><vol_status>-
 
 
 class ParserTest(unittest.TestCase):
+    def test_unique_handles_nested_values_and_mapping_order(self):
+        values = [
+            {"disk": "1", "meta": {"a": 1, "b": [2, 3]}},
+            {"meta": {"b": [2, 3], "a": 1}, "disk": "1"},
+        ]
+        self.assertEqual(len(_unique(values)), 1)
+
     def test_system_metrics(self):
         result = parse_system(ET.fromstring(SYSINFO))
         self.assertEqual(result["model"], "TS-431K")
