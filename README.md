@@ -39,6 +39,7 @@
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
 - `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
+- Webhook 通知：可選擇以 HTTPS 將 `health` 異常、選用的 indeterminate 結果與疑似 incident 通知至 operator-configured endpoint；預設停用、失敗不影響觀察結果，payload 只含遮蔽後的 allowlisted 欄位。
 - `incident contain`：由 report 產生人工網路隔離／取證清單；不改 NAS 防火牆或停止程序。
 - `incident evidence`：保存 report 到新的本機目錄並寫 SHA-256 manifest；不宣稱包含 NAS 原始日誌。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
@@ -168,6 +169,10 @@ Volume 可用 `--volume-index` 重複指定，也可在 MCP `qts_storage`／`qts
 Volume 查詢目前固定使用 `func=extra_get&extra_vol_index=1`，回應仍標記 `source.coverage: unverified`。磁碟則合併 `manaRequest.cgi` 的 bay／溫度與 `qsmart.cgi?func=all_hd_data` 的型號、容量、序號遮蔽值與頂層 Health。TS-431K 實機的 `vol_status=0` 尚未有足夠證據映射成 healthy，因此整體仍為 `indeterminate`。
 
 注意：`qsmart.cgi` 的頂層 `Health=OK/Normal` 不代表所有 SMART attribute、歷史 I/O 錯誤或 QTS 告警都正常。例如實機 HDD2 曾由 QTS UI 報告健康度不佳，但此次頂層欄位為 `Normal`；CLI 不會用它覆蓋或否定較具體的告警。
+
+## Webhook 通知
+
+Webhook 只在設定 `QTS_WEBHOOK_URL` 時啟用；URL 是 operator-local secret，僅接受 HTTPS，並使用預設 TLS 憑證驗證。`health` 的 `unhealthy` 及 `incident scan` 的 `suspected` 會通知；`indeterminate` 預設略過，可用 `QTS_WEBHOOK_ON_INDETERMINATE=true` 選擇啟用。可用 `--webhook`／`--no-webhook` 覆寫本次 CLI 呼叫。通知只會送出型號、韌體、build、有限 finding／unknown 摘要；findings 只含 code 與選用的 severity，unknowns 只含 code，不會送出自由文字訊息。Payload 不含憑證、hostname、序號、IP、share 名稱或 evidence 路徑。Delivery 使用短 timeout、不跟隨 redirect、不重試；錯誤不改變成功 observation 的 exit code。環境變數與秘密管理方式見[憑證注入指南](docs/SECRETS.md)。Mutation gate 仍關閉。
 
 TS-431K 的 `/sbin/get_hd_smartinfo -d 1..4` 實測皆為空，而且系統未安裝 `smartctl`；因此 `smart-details` 回傳 `data_status: unavailable_on_firmware`，不會假造 attributes。`md9`／`md13` 的 `[128/3]` QNAP wide bitmap 也不套用一般 Linux md 的底線判讀，`degraded` 會是 `null`。
 

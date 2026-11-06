@@ -14,6 +14,7 @@ from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evidence_bundle
 from .remediation import apply_plan, unavailable_plan
+from .webhook import maybe_notify_health, maybe_notify_incident, webhook_enabled
 
 
 def parser() -> argparse.ArgumentParser:
@@ -22,6 +23,10 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--config", type=Path, help="設定檔路徑（也可使用 QTS_CONFIG）")
     root.add_argument("--json", action="store_true", help="輸出 JSON")
     root.add_argument("--insecure", action="store_true", help="停用 TLS 憑證驗證（僅限受信任區網暫時使用）")
+    webhook_flags = root.add_mutually_exclusive_group()
+    webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", help="強制啟用符合條件的 webhook 通知")
+    webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", help="停用 webhook 通知")
+    root.set_defaults(webhook=None)
     subs = root.add_subparsers(dest="command", required=True)
 
     setup = subs.add_parser("setup", help="寫入連線設定；不儲存密碼")
@@ -83,6 +88,10 @@ def parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+        command_webhook_flags = command_parser.add_mutually_exclusive_group()
+        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", help="強制啟用符合條件的 webhook 通知")
+        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", help="停用 webhook 通知")
+        command_webhook_flags.set_defaults(webhook=argparse.SUPPRESS)
     seen = set()
     for command_parser in subs.choices.values():
         if id(command_parser) in seen:
@@ -91,7 +100,23 @@ def parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+        command_webhook_flags = command_parser.add_mutually_exclusive_group()
+        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", help="強制啟用符合條件的 webhook 通知")
+        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", help="停用 webhook 通知")
+        command_webhook_flags.set_defaults(webhook=argparse.SUPPRESS)
     return root
+
+
+def _add_webhook_result(value: Dict[str, Any], args: argparse.Namespace, delivery: Any) -> None:
+    if delivery is not None:
+        value["webhook"] = delivery
+        if delivery.get("status") in ("error", "rejected"):
+            detail = delivery.get("error") or delivery.get("status")
+            status = delivery.get("http_status")
+            suffix = " (HTTP {})".format(status) if status is not None else ""
+            print("webhook warning: {}{}".format(detail, suffix), file=sys.stderr)
+    elif args.webhook is not None:
+        value["webhook"] = {"status": "disabled", "http_status": None, "error": None}
 
 
 def _config(args: argparse.Namespace) -> Config:
@@ -275,6 +300,9 @@ def main(argv: Optional[list] = None) -> int:
                 value = incident_report(client, config, args.max_items)
             if args.evidence_dir:
                 value["evidence_bundle"] = write_evidence_bundle(args.evidence_dir, value)
+            delivery = maybe_notify_incident(value, force=args.webhook)
+            if delivery is not None or args.webhook is not None or webhook_enabled():
+                _add_webhook_result(value, args, delivery)
             _print(value, args.json)
             return 0
         if args.command == "repair":
@@ -317,6 +345,10 @@ def main(argv: Optional[list] = None) -> int:
                     value = health(client, indices) if args.command == "health" else storage(client, indices)
                 else:
                     value = operations[args.command](client)
+        if args.command == "health":
+            delivery = maybe_notify_health(value, force=args.webhook)
+            if delivery is not None or args.webhook is not None or webhook_enabled():
+                _add_webhook_result(value, args, delivery)
         _print(value, args.json)
         return 0
     except (QtsError, OSError) as exc:

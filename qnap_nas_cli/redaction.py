@@ -20,6 +20,7 @@ _IPV4_RE = re.compile(r"(?<![\w:])(?:\d{1,3}\.){3}\d{1,3}(?![\w:])")
 _MAC_RE = re.compile(r"(?i)(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])")
 _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 _SID_PARAMETER_RE = re.compile(r"(?i)(\b(?:sid|qtoken)\s*=\s*)[^&\s,;\"']+")
+_PASSWORD_PARAMETER_RE = re.compile(r"(?i)(\b(?:password|passwd|pwd)\s*=\s*)[^&\s,;\"']+")
 _SID_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z0-9_-]{24,}(?![A-Za-z0-9])")
 _LONG_NUMERIC_ID_RE = re.compile(r"(?<!\d)\d{8,}(?!\d)")
 
@@ -50,6 +51,7 @@ def _scrub_string(value: str, redact_sid_token: bool = True) -> str:
     value = _MAC_RE.sub("xx:xx:xx:xx:xx:xx", value)
     value = _EMAIL_RE.sub("REDACTED", value)
     value = _SID_PARAMETER_RE.sub(r"\1REDACTED", value)
+    value = _PASSWORD_PARAMETER_RE.sub(r"\1REDACTED", value)
     if redact_sid_token:
         value = _SID_TOKEN_RE.sub("REDACTED", value)
     return value
