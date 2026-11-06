@@ -14,6 +14,7 @@
 
 - 優先建立權限受限的 QTS 管理帳號，不使用內建 `admin` 作為日常 automation 帳號。
 - 使用可信 HTTPS 憑證；`--insecure` 只供隔離測試。
+- 密碼與 2FA 驗證碼只在執行期間注入；詳見[憑證注入說明](docs/SECRETS.md)。
 - SSH 使用金鑰與 `BatchMode`，不要在腳本中保存 SSH 密碼。
 - SSH probe 不經 shell，且只允許程式內固定 argv；不要新增通用 command/package 參數。
 - 執行任何未來的修復命令前，確認已有可登入的第二管理帳號與本地復原路徑。
