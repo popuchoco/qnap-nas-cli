@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-11-06
+
 - Add opt-in, fail-soft HTTPS webhook notifications for unhealthy health results and suspected incident scans; keep indeterminate health opt-in and the mutation gate closed. Scrub password/sid/qtoken assignments from redacted string values used in payloads.
 - Privacy fix: webhook findings and unknowns no longer include free-text messages; summaries use only fixed trigger/status/count text.
 - Add `qts report health` for atomic local timestamped JSON + codes-only Markdown + SHA-256 manifest reports, with `docs/SCHEDULE.md` cron／systemd timer examples; no in-process daemon; mutation gate stays closed.

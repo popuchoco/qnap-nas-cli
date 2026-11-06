@@ -7,11 +7,11 @@
 >
 > **支援政策：**僅支援最新的 `main` 與最新 release。
 >
-> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.3.0` 已發布到 PyPI，可用 pipx 或 pip 安裝；安裝方式見[安裝指南](docs/INSTALL.md)。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
+> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.4.0` 可用 pipx 或 pip 安裝；安裝方式見[安裝指南](docs/INSTALL.md)。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
-目前版本為 `0.3.0`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
+目前版本為 `0.4.0`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
 ## 目前狀態
 
@@ -21,7 +21,7 @@
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
-- `0.3.0` 之後已合入 opt-in HTTPS webhook、`qts report health`（外部 cron／systemd timer，無 daemon）與 atomic Evidence Capsule；版本號仍為 `0.3.0`（未另打 tag／PyPI）。mutation gate 仍關閉；第二管理帳號與第二機型仍未驗證。
+- `0.4.0` 包含 opt-in HTTPS webhook、`qts report health`（外部 cron／systemd timer，無 daemon）與 atomic Evidence Capsule，並已完成 TS-431K 實機驗證與 Windows atomic 相容修正。mutation gate 仍關閉；第二管理帳號與第二機型仍未驗證。
 
 維護者：`popuchoco <p.choco@daum.net>`
 
@@ -263,7 +263,7 @@ CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 whee
 3. 完成唯讀面與依賴圖後，只挑 1～2 個低風險、可逆操作；每項強制 plan、dry-run、明確確認、post-verify 與 rescue steps。
 4. 只有在確認第二管理帳號、SSH／本地復原路徑與失聯處置後，才評估更高風險操作。
 5. RAID rebuild、SMART repair、磁碟寫入與大幅防火牆修改不列入早期版本。
-6. 已完成：Webhook 告警、排程健康報告與 Evidence Capsule（已合 `main`；版本仍 `0.3.0`，未另打 tag／PyPI）。
+6. 已完成：Webhook 告警、排程健康報告與 Evidence Capsule（納入 `0.4.0`）。
 
 ## 授權與商標
 
