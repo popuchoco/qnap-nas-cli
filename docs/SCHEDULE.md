@@ -53,6 +53,8 @@ WantedBy=timers.target
 
 Webhook 仍預設關閉；`QTS_WEBHOOK_URL` 才會啟用符合既有政策的通知。Health `indeterminate` 預設不通知，只有設定 `QTS_WEBHOOK_ON_INDETERMINATE=1`、`true` 或 `yes` 才啟用。`--webhook`／`--no-webhook` 可覆寫本次執行。
 
+2026-11-06 已在 TS-431K/QTS 5.2.8 實機驗證：新目錄會產生 JSON、codes-only Markdown 與 `manifest.sha256`，兩個 payload 的雜湊均吻合；同一非空目錄重跑會以 exit 2 拒絕覆寫。Webhook 對本機 HTTPS 測試 sink 傳送的內容只有 allowlisted 裝置欄位與 finding/unknown codes，刻意讓 sink 無法連線時則回報 `connection_error`，但不改變 health observation 的 exit code。
+
 ## 範圍
 
 本功能只產生本機報告，不啟動 daemon 或程序內排程器。沒有雲端 relay、內建 SMTP email 或 NAS mutation；報告結果也不代表完整 storage coverage 或證明設備健康。

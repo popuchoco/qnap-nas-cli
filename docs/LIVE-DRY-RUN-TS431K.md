@@ -8,6 +8,8 @@ Overall result: **live read-only dry-run verified; mutation gate remains blocked
 
 **File Station dump, web path and offline replay were validated live on 2026-11-06.** The reviewed TS-431K fixture contains five placeholder shares and five root pages. Replay is deliberately partial because depth-zero capture does not include child pages; no indicator was found, but the result remains `indeterminate`, never clean. A second administrator and a second device model remain unproven, so the mutation gate stays closed.
 
+**Scheduled reports, webhook behavior and Evidence Capsule v2 were also validated live on 2026-11-06.** A new report directory produced JSON, a codes-only Markdown summary and a matching SHA-256 manifest; reuse of that non-empty directory was refused with exit code 2. A loopback HTTPS sink received only the allowlisted model/firmware/build, fixed summary and finding/unknown codes. A forced delivery failure returned `connection_error` while preserving the same health observation and exit code. The evidence capsule hashes and sizes matched both payload files. The 10,000-item incident scan was partial and truncated at the configured item limit, found zero IOC examples and remained `indeterminate`; therefore candidate attachment/rescue export was correctly not attempted.
+
 The live dry-run was bound to that observed model/firmware/build and used `unavailable_plan()` directly because the production CLI deliberately has no SSH mutation adapter. It returned `status: refused`, zero operations, four service-stop rescue steps, and both initial and repeated apply attempts returned `refused`. No service, package or setting was changed.
 
 ## Contract results
@@ -26,6 +28,9 @@ The live dry-run was bound to that observed model/firmware/build and used `unava
 | Independent recovery path | Partial | Direct LAN SSH worked while NAS-hosted Tailscale was observed separately as running, so LAN is independent of the Tailscale overlay for a Tailscale service operation. A second-account QTS login and physical/Qfinder recovery exercise were not completed. |
 | Live service evidence | Pass with limitations | Container Station and Tailscale metadata were enabled/complete; Tailscale reported Running and online. QPKG metadata alone is not daemon/workload health. |
 | Live RAID evidence | Pass with unknowns | No ordinary md member map was degraded. QNAP 128-wide maps for `md13`/`md9` remain unknown by design and are not asserted healthy. |
+| Scheduled health report | Pass live | New/empty-directory publication produced JSON, codes-only Markdown and matching hashes; a repeated write to the same directory was refused with exit 2. |
+| Webhook allowlist / failure isolation | Pass live | The HTTPS sink saw only allowlisted device fields and codes. A connection failure was recorded in `webhook` but did not change the observation exit code. |
+| Evidence Capsule v2 | Pass live with partial scan | Manifest format 2 hashes and sizes matched. The bounded scan reached 10,000 items, was partial/truncated and contained no IOC example, so no sample was exported. |
 
 ## Required live rerun
 

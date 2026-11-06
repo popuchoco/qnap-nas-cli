@@ -252,15 +252,20 @@ def validate_attachments(
 
 
 def _hash_file(path: Path, max_bytes: int) -> Tuple[int, str]:
-    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_NONBLOCK"):
-        raise QtsError("平台不支援安全檢查 sample symlink 與 non-regular file")
-    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    before = path.lstat()
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        raise QtsError("sample export 必須是一般檔案且不可為 symlink")
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
     descriptor = os.open(str(path), flags)
     size = 0
     digest = hashlib.sha256()
     try:
         info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode):
+        if not stat.S_ISREG(info.st_mode) or (before.st_dev, before.st_ino) != (info.st_dev, info.st_ino):
             raise QtsError("sample export 必須是一般檔案")
         with os.fdopen(descriptor, "rb") as stream:
             while True:
@@ -386,7 +391,16 @@ def write_evidence_capsule(
         current = _check_destination(target)
         if current != previous:
             raise QtsError("evidence directory 在寫入期間變更；已拒絕發布")
-        os.replace(stage_name, str(target))
+        removed_empty_target = False
+        if os.name == "nt" and previous is not None:
+            os.rmdir(str(target))
+            removed_empty_target = True
+        try:
+            os.replace(stage_name, str(target))
+        except OSError:
+            if removed_empty_target and not target.exists():
+                target.mkdir()
+            raise
         stage_name = None
     except (QtsError, FileExistsError):
         raise

@@ -6,6 +6,7 @@
 - Privacy fix: webhook findings and unknowns no longer include free-text messages; summaries use only fixed trigger/status/count text.
 - Add `qts report health` for atomic local timestamped JSON + codes-only Markdown + SHA-256 manifest reports, with `docs/SCHEDULE.md` cron／systemd timer examples; no in-process daemon; mutation gate stays closed.
 - Add atomic, recursively redacted incident evidence capsules with codes-only summaries, format v2 payload hashes, and optional exact-example sample attachments under a combined byte cap; keep the mutation gate closed.
+- Validate scheduled reports, webhook delivery/failure semantics, and format-v2 evidence capsules live against the TS-431K on 2026-11-06. Add Windows-safe atomic publication and sample validation without weakening symlink/non-regular-file rejection.
 
 ## 0.3.0 — 2026-11-06
 

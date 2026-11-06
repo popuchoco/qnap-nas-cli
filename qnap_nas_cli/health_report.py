@@ -180,7 +180,16 @@ def write_health_report(
         current = _check_destination(target)
         if current != previous:
             raise QtsError("report directory 在寫入期間變更；已拒絕發布")
-        os.replace(stage_name, str(target))
+        removed_empty_target = False
+        if os.name == "nt" and previous is not None:
+            os.rmdir(str(target))
+            removed_empty_target = True
+        try:
+            os.replace(stage_name, str(target))
+        except OSError:
+            if removed_empty_target and not target.exists():
+                target.mkdir()
+            raise
         stage_name = None
     except OSError as exc:
         raise QtsError("無法寫入 health report：{}".format(exc)) from exc

@@ -17,6 +17,7 @@
 
 - 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
 - CI 執行離線測試、Python bytecode compilation 與 CLI smoke test。TS-431K 的 File Station reviewed fixture，以及 QTS web `status`／`health` 與 `repair plan`／`apply` 回傳 `refused`，已於 2026-11-06 完成驗證；第二管理帳號仍未驗證，因此 mutation gate 仍關閉，詳見 [`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md)。
+- TS-431K 也已於 2026-11-06 完成排程健康報告、HTTPS Webhook 成功／失敗隔離，以及 Evidence Capsule v2 的實機驗證：manifest hash/size 均吻合、重複目錄 fail closed、Webhook 只含 allowlisted codes，且本次 10,000-item 掃描因 coverage partial/truncated、沒有 IOC examples 而未匯出樣本。
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
