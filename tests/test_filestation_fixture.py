@@ -39,6 +39,7 @@ class FixtureCaptureTest(unittest.TestCase):
             saved = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.json"))
             self.assertNotIn("PrivateShare", saved)
             self.assertNotIn("owner@example.invalid", saved)
+            self.assertNotIn("normal.txt", saved)
             self.assertEqual(manifest["pages"][0]["path"], "/ShareA")
             self.assertEqual(manifest["pages"][0]["total"], 2)
             self.assertEqual(manifest["pages"][0]["returned"], 2)
@@ -83,14 +84,14 @@ class FixtureCaptureTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             clean = Path(temporary) / "clean"
             shutil.copytree(base, clean)
-            shutil.copytree(SYNTHETIC / "filestation", clean / "filestation")
+            shutil.copytree(SYNTHETIC / "filestation", clean / "filestation", dirs_exist_ok=True)
             result = validate_dump(clean)
             self.assertTrue(result["valid"], result["errors"])
             self.assertTrue(result["filestation"]["valid"])
 
             dirty = Path(temporary) / "dirty"
             shutil.copytree(base, dirty)
-            shutil.copytree(SYNTHETIC / "filestation", dirty / "filestation")
+            shutil.copytree(SYNTHETIC / "filestation", dirty / "filestation", dirs_exist_ok=True)
             list_file = dirty / "filestation" / "list__ShareA__0.json"
             payload = json.loads(list_file.read_text(encoding="utf-8"))
             payload["debug"] = "sid=unredacted-session-value"
@@ -98,6 +99,18 @@ class FixtureCaptureTest(unittest.TestCase):
             failed = validate_dump(dirty)
             self.assertFalse(failed["valid"])
             self.assertIn("failed", failed["filestation"]["pattern_scan"])
+
+    def test_reviewed_ts431k_filestation_fixture_replays_conservatively(self):
+        fixture = FIXTURES / "ts431k-qts-5.2.8-build-20251216"
+        validation = validate_dump(fixture)
+        self.assertTrue(validation["valid"], validation["errors"])
+        self.assertEqual(validation["filestation"]["shares"], 5)
+        self.assertEqual(validation["filestation"]["pattern_scan"], "passed")
+        replay = scan_ransomware_artifacts(FileStationFixtureClient(fixture))
+        self.assertEqual(replay["assessment"], "indeterminate")
+        self.assertEqual(replay["coverage"]["status"], "partial")
+        self.assertFalse(replay["indicators"])
+        self.assertTrue(replay["coverage"]["issues"])
 
 
 if __name__ == "__main__":

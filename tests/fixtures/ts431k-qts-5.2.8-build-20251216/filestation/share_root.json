@@ -1,0 +1,72 @@
+[
+  {
+    "id": "/ShareA",
+    "cls": "w",
+    "text": "ShareA",
+    "no_setup": 0,
+    "is_cached": 0,
+    "draggable": 0,
+    "iconCls": "folder",
+    "noSupportACL": 0,
+    "recycle_bin": "enable",
+    "recycle_folder": "yes",
+    "max_item_limit": 2000,
+    "real_total": 5
+  },
+  {
+    "id": "/ShareB",
+    "cls": "w",
+    "text": "ShareB",
+    "no_setup": 0,
+    "is_cached": 0,
+    "draggable": 0,
+    "iconCls": "folder",
+    "noSupportACL": 0,
+    "recycle_bin": "enable",
+    "recycle_folder": "yes",
+    "max_item_limit": 2000,
+    "real_total": 5
+  },
+  {
+    "id": "/ShareC",
+    "cls": "w",
+    "text": "ShareC",
+    "no_setup": 0,
+    "is_cached": 0,
+    "draggable": 0,
+    "iconCls": "folder",
+    "noSupportACL": 0,
+    "recycle_bin": "enable",
+    "recycle_folder": "yes",
+    "max_item_limit": 2000,
+    "real_total": 5
+  },
+  {
+    "id": "/ShareD",
+    "cls": "w",
+    "text": "ShareD",
+    "no_setup": 0,
+    "is_cached": 0,
+    "draggable": 0,
+    "iconCls": "folder",
+    "noSupportACL": 0,
+    "recycle_bin": "enable",
+    "recycle_folder": "yes",
+    "max_item_limit": 2000,
+    "real_total": 5
+  },
+  {
+    "id": "/ShareE",
+    "cls": "w",
+    "text": "ShareE",
+    "no_setup": 0,
+    "is_cached": 0,
+    "draggable": 0,
+    "iconCls": "folder",
+    "noSupportACL": 0,
+    "recycle_bin": "enable",
+    "recycle_folder": "yes",
+    "max_item_limit": 2000,
+    "real_total": 5
+  }
+]

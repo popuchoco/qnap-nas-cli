@@ -6,7 +6,7 @@ Validation attempted on 2026-11-04 against the previously used TS-431K LAN endpo
 
 Overall result: **live read-only dry-run verified; mutation gate remains blocked**. The first attempt failed because no accepted automation key or stored credential was available. After the operator authenticated interactively and installed a dedicated temporary Ed25519 public key, fixed SSH probes succeeded. They identified internal model `TS-X41`, QTS 5.2.8 build 20251216, five md arrays, Container Station/Tailscale QPKG metadata and live Tailscale status. No password, TOTP, SID, private key material, hostname or address is stored in this report.
 
-**File Station / incident scan tooling and offline replay are ready, but still 仍需 reviewed fixture（需實機＋小鑫審閱）.** The checked-in synthetic-shape fixture exercises clean, IOC, and partial-page replay only; it was not captured from a device and is not reviewed evidence. A second administrator and a second device model also remain unproven, so the mutation gate stays closed.
+**File Station dump, web path and offline replay were validated live on 2026-11-06.** The reviewed TS-431K fixture contains five placeholder shares and five root pages. Replay is deliberately partial because depth-zero capture does not include child pages; no indicator was found, but the result remains `indeterminate`, never clean. A second administrator and a second device model remain unproven, so the mutation gate stays closed.
 
 The live dry-run was bound to that observed model/firmware/build and used `unavailable_plan()` directly because the production CLI deliberately has no SSH mutation adapter. It returned `status: refused`, zero operations, four service-stop rescue steps, and both initial and repeated apply attempts returned `refused`. No service, package or setting was changed.
 
@@ -15,7 +15,9 @@ The live dry-run was bound to that observed model/firmware/build and used `unava
 | Requirement | Result | Evidence / consequence |
 |---|---|---|
 | Dry-run performs no mutation | Pass live | Production has no mutation adapter; the live-bound `unavailable_plan()` contained zero operations and both apply attempts returned `refused`. |
-| Live device identity binding | Pass via SSH observation | Model, firmware and build matched the reviewed fixture. This did not exercise QTS web login or a mutation endpoint. |
+| Live device identity binding | Pass via SSH and QTS web paths | Model `TS-X41`, firmware 5.2.8 and build 20251216 matched both reviewed captures. |
+| QTS web status / health | Pass conservatively | Web login succeeded. Health returned `indeterminate` and `healthy_claim: not_permitted` for unverified storage scope and unknown volume status; no write endpoint was used. |
+| File Station dump / replay | Pass with partial coverage | Format v3 dump validated; 5 shares and 24 root entries replayed. Twenty-two child folders have no captured child page, so coverage is partial and no-hit remains indeterminate. |
 | Exact confirmation and expiry | Pass offline | Plan hash, exact confirmation, timezone-aware 15-minute expiry and tamper rejection are unit-tested. |
 | State-drift rejection | Pass offline | A changed before-state returns `stale_plan` before an adapter is called. |
 | Replay / at-most-once behavior | Pass offline | Replaying a completed fake-adapter plan cannot invoke the adapter twice. |
@@ -30,12 +32,12 @@ The live dry-run was bound to that observed model/firmware/build and used `unava
 1. Replace the temporary full-admin automation key with a dedicated, least-privilege read-only login where QTS permits it, and create a separate administrator account for recovery; do not put either password or TOTP in repository files or command arguments.
 2. From the NAS LAN, log in with the second administrator and confirm access to App Center while keeping the first session open. Record only pass/fail, account role, time and route—never credentials or session tokens.
 3. Exercise the independent route without relying on the service being evaluated. For Tailscale or subnet-router work, use direct LAN plus local presence/Qfinder recovery, not another path through NAS-hosted Tailscale.
-4. Complete the QTS web-authenticated path below. Confirm the plan remains `refused`, contains no operations and identifies the same model/firmware/build. The SSH-bound dry-run is already verified, but it does not substitute for this web path.
+4. Repeat the QTS web path after firmware changes; the 2026-11-06 run confirmed the plan remains `refused`, contains zero operations and identifies the same model/firmware/build.
 5. Do not register a real adapter yet. First capture redacted before/readback fixtures for one named package and document its exact QTS-version-specific start/stop interface, dependencies and inverse action.
 
-## QTS web login path (offline checklist pending operator run)
+## QTS web login path (validated 2026-11-06)
 
-No web login was attempted for this checklist. It needs 小鑫 to run from the trusted NAS LAN with the existing config from `qts setup --origin https://<NAS> --user <acct> ...`. Inject secrets through environment variables only; never put them in application arguments or files. Run each command once. Stop immediately after any authentication failure; do not retry with alternate credentials or codes.
+The operator injected password and TOTP through process-only environment variables from the trusted LAN. `status` returned the expected model/firmware/build; `health` remained indeterminate; the service-stop plan was integrity-valid, `status: refused`, contained zero operations and four rescue steps. Applying that refused plan through the local engine also returned `refused`. PowerShell 5 redirected JSON as UTF-16, so validation used BOM-aware decoding; this was an output-file encoding issue, not malformed JSON.
 
 ```bash
 QTS_PASSWORD='…' QTS_SECURITY_CODE='…' qts --json status
@@ -46,16 +48,16 @@ QTS_PASSWORD='…' QTS_SECURITY_CODE='…' qts repair apply /tmp/qts-repair-plan
 
 For the final command, substitute the `plan_id` returned by the plan command. Paste back only redacted pass/fail results, exit codes, model/firmware/build, and `plan status: refused`. Never paste the password, security code/TOTP, SID, hostname, or IP address. Keep the local plan file private and remove it after reporting the redacted result.
 
-## File Station reviewed fixture capture (pending operator)
+## File Station reviewed fixture capture (completed 2026-11-06)
 
-Still needs a reviewed live dump（需實機＋小鑫審閱）. After `qts setup` and env injection of secrets (never argv / never write secrets to disk):
+The live format-v3 dump and offline validation completed successfully. The first review found that arbitrary first-level folder names survived the original redactor even though network/session pattern scans passed. The redactor was corrected to replace every ordinary entry name with a deterministic placeholder while preserving only incident-rule semantics. The fixture was then transformed, validated, replayed and reviewed before inclusion.
 
 ```bash
 QTS_PASSWORD='…' QTS_SECURITY_CODE='…' qts dump --filestation /tmp/qts-dump-filestation --json
 qts fixture validate /tmp/qts-dump-filestation --json
 ```
 
-Before any commit: manually review `filestation/*.json` for hostnames, IPs, serials, usernames, share names, SID/qtoken, MACs; keep only redacted structure. Record PROVENANCE with capture date, model/firmware/build, and that a human reviewed the redaction. Do not paste secrets into chat or the repository.
+Final review covered 29 name fields and found zero unsafe names, private/Tailscale IPs, MACs or SID/qtoken patterns. Replay saw 5 shares, 24 entries and no indicator, but reported partial coverage because 22 child paths were intentionally not captured. The original local dump is not committed.
 
 ## Concrete rescue baseline for the first service adapter
 

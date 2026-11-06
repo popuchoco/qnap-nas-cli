@@ -1,0 +1,68 @@
+{
+  "format_version": 1,
+  "generated_at": "2026-11-06T07:37:24.926458+00:00",
+  "redacted": true,
+  "provenance_status": "reviewed_live_capture",
+  "limits": {
+    "max_shares": 5000,
+    "max_items": 10000,
+    "page_size": 200,
+    "max_depth": 0
+  },
+  "shares_visible": 5,
+  "shares_captured": 5,
+  "items_captured": 24,
+  "truncated": false,
+  "pages": [
+    {
+      "share": "ShareA",
+      "path": "/ShareA",
+      "start": 0,
+      "limit": 200,
+      "total": 5,
+      "returned": 5,
+      "file": "list__ShareA__0.json",
+      "truncated": false
+    },
+    {
+      "share": "ShareB",
+      "path": "/ShareB",
+      "start": 0,
+      "limit": 200,
+      "total": 3,
+      "returned": 3,
+      "file": "list__ShareB__0.json",
+      "truncated": false
+    },
+    {
+      "share": "ShareC",
+      "path": "/ShareC",
+      "start": 0,
+      "limit": 200,
+      "total": 12,
+      "returned": 12,
+      "file": "list__ShareC__0.json",
+      "truncated": false
+    },
+    {
+      "share": "ShareD",
+      "path": "/ShareD",
+      "start": 0,
+      "limit": 200,
+      "total": 2,
+      "returned": 2,
+      "file": "list__ShareD__0.json",
+      "truncated": false
+    },
+    {
+      "share": "ShareE",
+      "path": "/ShareE",
+      "start": 0,
+      "limit": 200,
+      "total": 2,
+      "returned": 2,
+      "file": "list__ShareE__0.json",
+      "truncated": false
+    }
+  ]
+}

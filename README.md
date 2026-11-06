@@ -115,7 +115,7 @@ QTS_PASSWORD='...' QTS_SECURITY_CODE='…' qts --json health
 
 # 產生已遮蔽的相容性資料
 qts dump qts-dump
-# 可選：額外擷取已遮蔽 File Station（仍需實機＋人工審閱才算 reviewed fixture）
+# 可選：額外擷取已遮蔽 File Station；提交前仍須逐次人工審閱
 qts dump --filestation qts-dump
 qts fixture validate qts-dump --json
 ```

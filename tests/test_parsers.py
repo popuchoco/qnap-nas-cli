@@ -101,7 +101,24 @@ class ParserTest(unittest.TestCase):
         for secret in ("MYNAS", "192.168.1.22", "00:11:22:33:44:55", "SID-SECRET-123", "QTOKEN-SECRET-123", "operator-secret", "PrivateShare", "inline-secret", "inline-token"):
             self.assertNotIn(secret, rendered)
         self.assertEqual(value["datas"][0]["id"], "/ShareA")
-        self.assertEqual(value["datas"][0]["path"], "/ShareA/folder")
+        self.assertEqual(value["datas"][0]["path"], "/ShareA/Entry_REDACTED")
+        self.assertEqual(value["datas"][0]["filename"], "Entry_REDACTED")
+        self.assertNotIn("report.txt", rendered)
+
+    def test_filestation_names_preserve_only_incident_semantics(self):
+        payload = {"datas": [
+            {"filename": "private-family-photo.jpg"},
+            {"filename": "archive.7z"},
+            {"filename": "photo.jpg.deadbolt"},
+            {"filename": "!!!READ_ME.txt"},
+        ]}
+        value = redact_filestation_value(payload)
+        names = [item["filename"] for item in value["datas"]]
+        self.assertNotIn("private-family-photo.jpg", str(value))
+        self.assertEqual(names[0], "Entry_REDACTED")
+        self.assertTrue(names[1].endswith(".7z"))
+        self.assertTrue(names[2].endswith(".deadbolt"))
+        self.assertEqual(names[3], "!!!READ_ME.txt")
 
 
 if __name__ == "__main__":

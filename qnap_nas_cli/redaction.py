@@ -80,11 +80,18 @@ def _sanitize_path_components(value: str) -> str:
     parts = re.split(r"([/\\])", value)
     for index in range(0, len(parts), 2):
         component = parts[index]
-        if _EMAIL_RE.search(component) or _LONG_NUMERIC_ID_RE.search(component):
-            parts[index] = "REDACTED_NAME"
-        else:
-            parts[index] = _scrub_string(component)
+        if component and not re.fullmatch(r"Share[A-Z]+", component):
+            parts[index] = _safe_entry_name(component)
     return "".join(parts)
+
+
+def _safe_entry_name(value: str) -> str:
+    """Keep only incident semantics; never persist a user's entry name."""
+    lowered = value.lower()
+    if lowered == "!!!read_me.txt":
+        return "!!!READ_ME.txt"
+    suffix = ".deadbolt" if lowered.endswith(".deadbolt") else ".7z" if lowered.endswith(".7z") else ""
+    return "Entry_REDACTED" + suffix
 
 
 def _is_sensitive_network_tag(tag: str) -> bool:
@@ -142,8 +149,8 @@ def redact_filestation_value(value: Any, share_mapping: Optional[Mapping[str, st
 
     rewritten = _rewrite_share_reference(value, mapping)
     normalized_key = _normalized_key(key or "")
-    if normalized_key == "filename" and (_EMAIL_RE.search(rewritten) or _LONG_NUMERIC_ID_RE.search(rewritten)):
-        return "REDACTED_NAME"
+    if normalized_key in ("filename", "text") and not re.fullmatch(r"Share[A-Z]+", rewritten):
+        return _safe_entry_name(rewritten)
     if normalized_key in ("id", "path", "sourcepath"):
         rewritten = _sanitize_path_components(rewritten)
     return _scrub_string(rewritten, redact_sid_token=normalized_key != "filename")
