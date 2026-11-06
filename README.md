@@ -42,11 +42,13 @@
 - `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
 - Webhook 通知：可選擇以 HTTPS 將 `health` 異常、選用的 indeterminate 結果與疑似 incident 通知至 operator-configured endpoint；預設停用、失敗不影響觀察結果，payload 只含遮蔽後的 allowlisted 欄位。
 - `incident contain`：由 report 產生人工網路隔離／取證清單；不改 NAS 防火牆或停止程序。
-- `incident evidence`：保存 report 到新的本機目錄並寫 SHA-256 manifest；不宣稱包含 NAS 原始日誌。
+- `incident evidence`：以 private staging 和 atomic directory publish 保存遞迴遮蔽後的 report、codes-only `summary.md` 與 format v2 SHA-256 manifest；可重複指定最多 100 個 `--attach-candidate`，但每個路徑都必須精確出現在 report 的 indicator examples，並受 `--max-bytes` 合計上限限制。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
 - `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
 - `mcp`：提供十個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
+
+Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
 
 本版不提供 RAID 重建、SMART 修復、Container Station 停止、Tailscale 重啟、惡意程序 suspend/kill、QTS 防火牆修改、惡意檔案刪除或 NAS 上直接還原。通用 plan/apply 執行引擎可由測試用 adapter 驗證，但正式 adapter 必須先有指定機型／韌體的實機契約測試、前置條件與第二管理路徑、before/after readback、失敗中止與回復程序。
 
@@ -97,12 +99,14 @@ qts disk-topology --json
 qts smart-details 2 --json
 qts services --json
 
-# 勒索事件：有限掃描，並建立本機 evidence bundle
+# 勒索事件：有限掃描，建立 atomic 本機 evidence capsule
 qts incident scan --max-items 10000 --evidence-dir case-2026-01 --json
 qts incident contain case-2026-01/incident.json --json
 qts incident rescue case-2026-01/incident.json --json
-# 只有在要匯出 report 已列出的 IOC 範例檔時才提供 candidate path。
-# 匯出到全新的本機目錄，預設上限 100 MiB；不是 NAS restore。
+# 後續可將 report 中精確列出的 IOC 範例附加到同一 capsule；合計上限預設 100 MiB。
+qts incident evidence case-2026-01/incident.json case-with-sample \
+  --attach-candidate '/Public/!!!READ_ME.txt' --max-bytes 104857600
+# Rescue 同樣只接受 report 已列出的 IOC 範例，並使用安全樣本檔名；不是 NAS restore。
 qts incident rescue case-2026-01/incident.json --candidate-path '/Public/!!!READ_ME.txt' --directory case-sample
 
 # 一般修復流程目前只會建立明確拒絕執行的計畫，不會修改 NAS
