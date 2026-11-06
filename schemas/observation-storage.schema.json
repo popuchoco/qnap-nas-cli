@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "qnap-nas-cli storage observation",
+  "description": "The standalone storage command payload. Health observations place the same storage object under health.storage and keep limitations there.",
+  "type": "object",
+  "required": ["volumes", "disks", "source", "limitations"],
+  "properties": {
+    "volumes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "status_code", "status_semantics"],
+        "properties": {
+          "name": {"type": ["string", "null"]},
+          "status": {"type": "string"},
+          "status_code": {"type": ["integer", "null"]},
+          "status_semantics": {"type": "string", "enum": ["known_good", "known_bad", "unknown"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "disks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["disk"],
+        "properties": {"disk": {"type": ["string", "null"]}},
+        "additionalProperties": true
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["endpoint", "func", "extra_vol_indices", "coverage", "additional_endpoints"],
+      "properties": {
+        "endpoint": {"type": "string"},
+        "func": {"type": "string"},
+        "extra_vol_indices": {"type": "array", "items": {"type": "integer"}, "minItems": 1},
+        "coverage": {"type": "string", "enum": ["unverified"]},
+        "additional_endpoints": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "parser_warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "qnap-nas-cli incident report observation",
+  "description": "The bounded incident_report payload. IOC evidence is returned as ransomware_scan.indicators; the assessment is suspected or indeterminate and does not claim clean or healthy.",
+  "type": "object",
+  "required": ["report_type", "format_version", "checked_at", "assessment", "ransomware_scan", "observations", "collection_errors", "response_plan"],
+  "properties": {
+    "report_type": {"type": "string", "enum": ["qnap_incident_triage"]},
+    "format_version": {"type": "integer"},
+    "checked_at": {"type": "string"},
+    "assessment": {"type": "string", "enum": ["suspected", "indeterminate"]},
+    "ransomware_scan": {
+      "type": "object",
+      "required": ["assessment", "checked_at", "coverage", "indicators", "note"],
+      "properties": {
+        "assessment": {"type": "string", "enum": ["suspected", "indeterminate"]},
+        "checked_at": {"type": "string"},
+        "coverage": {
+          "type": "object",
+          "required": ["status", "shares_seen", "folders_scanned", "entries_scanned", "files_scanned", "max_items", "max_depth", "truncated", "depth_limited", "truncation_reasons", "issues", "scope"],
+          "properties": {
+            "status": {"type": "string", "enum": ["bounded_complete_for_visible_shares", "partial"]},
+            "shares_seen": {"type": "integer"},
+            "folders_scanned": {"type": "integer"},
+            "entries_scanned": {"type": "integer"},
+            "files_scanned": {"type": "integer"},
+            "max_items": {"type": "integer"},
+            "max_depth": {"type": "integer"},
+            "truncated": {"type": "boolean"},
+            "depth_limited": {"type": "boolean"},
+            "truncation_reasons": {"type": "array", "items": {"type": "string"}},
+            "issues": {"type": "array", "items": {"type": "object", "required": ["source", "error"], "properties": {"source": {"type": "string"}, "error": {"type": "string"}}, "additionalProperties": true}},
+            "scope": {"type": "string"}
+          },
+          "additionalProperties": true
+        },
+        "indicators": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "family", "confidence", "count", "examples"],
+            "properties": {
+              "code": {"type": "string"},
+              "family": {"type": "string"},
+              "confidence": {"type": "string"},
+              "count": {"type": "integer"},
+              "examples": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": true
+          }
+        },
+        "note": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "observations": {"type": "object"},
+    "collection_errors": {"type": "array", "items": {"type": "object", "required": ["source", "error"], "properties": {"source": {"type": "string"}, "error": {"type": "string"}}, "additionalProperties": true}},
+    "response_plan": {
+      "type": "object",
+      "required": ["status", "actions_applied", "automation_supported", "steps"],
+      "properties": {
+        "status": {"type": "string"},
+        "actions_applied": {"type": "array"},
+        "automation_supported": {"type": "boolean"},
+        "steps": {"type": "array", "items": {"type": "object", "required": ["step", "action", "mode"], "properties": {"step": {"type": "integer"}, "action": {"type": "string"}, "mode": {"type": "string"}}, "additionalProperties": true}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

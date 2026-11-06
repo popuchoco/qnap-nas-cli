@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "qnap-nas-cli health observation",
+  "description": "The health envelope emitted by qts health and MCP qts_health. Limitations are required at storage.limitations, as in the current output; an optional top-level limitations field is reserved for compatible consumers.",
+  "type": "object",
+  "required": ["status", "healthy_claim", "findings", "unknowns", "storage"],
+  "properties": {
+    "status": {"type": "string", "enum": ["healthy", "unhealthy", "indeterminate"]},
+    "healthy_claim": {"type": "string", "enum": ["permitted", "not_permitted"]},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {"code": {"type": "string"}, "message": {"type": "string"}},
+        "additionalProperties": true
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {"code": {"type": "string"}, "message": {"type": "string"}},
+        "additionalProperties": true
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["limitations"],
+      "properties": {"limitations": {"type": "array", "items": {"type": "string"}}},
+      "additionalProperties": true
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}
