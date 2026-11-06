@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add opt-in, fail-soft HTTPS webhook notifications for unhealthy health results and suspected incident scans; keep indeterminate health opt-in and the mutation gate closed. Scrub password/sid/qtoken assignments from redacted string values used in payloads.
+
 ## 0.3.0 — 2026-11-06
 
 - Add opt-in redacted File Station dump capture, offline fixture replay, and structural/leak validation; the reviewed live TS-431K fixture and redactor privacy fix landed in `5ad937e`. Synthetic fixtures remain for clean/IOC/truncation edge cases only.
