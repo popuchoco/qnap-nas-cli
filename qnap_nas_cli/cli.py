@@ -13,6 +13,7 @@ from .config import Config, default_config_path, load_config, password_from_envi
 from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evidence_bundle
+from .evidence_capsule import DEFAULT_MAX_BYTES, validate_attachments
 from .health_report import write_health_report
 from .remediation import apply_plan, unavailable_plan
 from .webhook import maybe_notify_health, maybe_notify_incident, webhook_enabled
@@ -76,11 +77,13 @@ def parser() -> argparse.ArgumentParser:
     incident_evidence = incident_subs.add_parser("evidence", help="將既有 incident report 封存並建立 SHA-256 manifest")
     incident_evidence.add_argument("report", type=Path)
     incident_evidence.add_argument("directory", type=Path)
+    incident_evidence.add_argument("--attach-candidate", action="append", default=[], metavar="PATH", help="唯讀附加 report 已列出的 indicator 範例；最多 100 個，可重複指定")
+    incident_evidence.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES, help="所有附加樣本合計上限，預設 100 MiB，最大 1 GiB")
     incident_rescue = incident_subs.add_parser("rescue", help="從 incident report 產生離線備份復原計畫；不覆寫 NAS")
     incident_rescue.add_argument("report", type=Path)
     incident_rescue.add_argument("--candidate-path", help="僅可指定本次 report 已列出的 indicator 範例，匯出一份唯讀本機樣本")
     incident_rescue.add_argument("--directory", type=Path, help="建立新的本機隔離 evidence 目錄；搭配 --candidate-path 使用")
-    incident_rescue.add_argument("--max-bytes", type=int, default=100 * 1024 * 1024)
+    incident_rescue.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
     repair = subs.add_parser("repair", help="一般修復的 plan/apply 閘門；尚無已驗證的 NAS 寫入 adapter")
     repair_subs = repair.add_subparsers(dest="repair_command", required=True)
     repair_plan = repair_subs.add_parser("plan", help="讀取設備身分並輸出明確拒絕執行的 dry-run plan")
@@ -230,9 +233,17 @@ def main(argv: Optional[list] = None) -> int:
             _print(result, args.json)
             return 0 if result["valid"] else 2
         offline_incident = args.command == "incident" and args.incident_command in ("contain", "evidence", "rescue")
-        if offline_incident and not (args.incident_command == "rescue" and args.candidate_path):
+        needs_sample_export = False
+        if args.command == "incident":
+            needs_sample_export = (
+                args.incident_command == "rescue" and bool(args.candidate_path)
+            ) or (
+                args.incident_command == "evidence" and bool(args.attach_candidate)
+            )
+        if offline_incident and not needs_sample_export:
             report = _read_json(args.report)
             if args.incident_command == "evidence":
+                validate_attachments(report, args.attach_candidate, args.max_bytes)
                 value = write_evidence_bundle(args.directory, report)
             else:
                 scan = report.get("ransomware_scan")
@@ -283,20 +294,27 @@ def main(argv: Optional[list] = None) -> int:
                     raise QtsError("report 缺少 ransomware_scan")
                 if not args.candidate_path:
                     raise QtsError("請提供 --candidate-path，或只產生離線 rescue plan")
-                candidates = [example for indicator in scan.get("indicators", []) for example in indicator.get("examples", [])]
-                if args.candidate_path not in candidates:
-                    raise QtsError("只能匯出本 report 列出的 indicator 範例路徑")
                 if not args.directory:
                     raise QtsError("匯出本機樣本時必須指定新的 --directory")
-                if not 1 <= args.max_bytes <= 1024 * 1024 * 1024:
-                    raise QtsError("max-bytes 必須介於 1 byte 與 1 GiB")
-                source_path, _, filename = args.candidate_path.rpartition("/")
-                if not source_path or not filename:
-                    raise QtsError("candidate-path 格式無效")
-                report_manifest = write_evidence_bundle(args.directory, report)
+                candidates = validate_attachments(report, [args.candidate_path], args.max_bytes)
                 with QtsClient(config) as client:
                     _login(client)
-                    sample = client.download_file(source_path, filename, args.directory / filename, args.max_bytes)
+                    def export_sample(candidate, target, remaining):
+                        source_path, _, filename = candidate.rpartition("/")
+                        return client.download_file(source_path, filename, target, remaining)
+
+                    report_manifest = write_evidence_bundle(
+                        args.directory, report, attach_candidates=candidates,
+                        max_bytes=args.max_bytes, sample_exporter=export_sample,
+                        rescue_manifest=True,
+                    )
+                record = report_manifest["samples"][0]
+                sample = {
+                    "path": str(Path(report_manifest["directory"]) / record["name"]),
+                    "size_bytes": record["size_bytes"],
+                    "sha256": record["sha256"],
+                    "max_bytes": args.max_bytes,
+                }
                 value = {
                     "status": "sample_exported_not_restored",
                     "actions_applied": [],
@@ -305,7 +323,24 @@ def main(argv: Optional[list] = None) -> int:
                     "report_manifest": report_manifest,
                     "note": "已唯讀匯出到新本機目錄；這不是 NAS 復原，也不會執行或解密樣本。",
                 }
-                _save_new_json(args.directory / "rescue-manifest.json", value)
+                _print(value, args.json)
+                return 0
+            if args.incident_command == "evidence":
+                report = _read_json(args.report)
+                if args.attach_candidate:
+                    candidates = validate_attachments(report, args.attach_candidate, args.max_bytes)
+                    with QtsClient(config) as client:
+                        _login(client)
+                        def export_sample(candidate, target, remaining):
+                            source_path, _, filename = candidate.rpartition("/")
+                            return client.download_file(source_path, filename, target, remaining)
+
+                        value = write_evidence_bundle(
+                            args.directory, report, attach_candidates=candidates,
+                            max_bytes=args.max_bytes, sample_exporter=export_sample,
+                        )
+                else:
+                    value = write_evidence_bundle(args.directory, report)
                 _print(value, args.json)
                 return 0
             if not 1 <= args.max_items <= MAX_MAX_ITEMS:

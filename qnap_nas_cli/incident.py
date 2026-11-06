@@ -4,8 +4,6 @@ This is deliberately not a general malware detector. It inventories visible
 File Station shares and reports a small set of campaign-specific indicators.
 """
 
-import hashlib
-import json
 import posixpath
 from collections import deque
 from datetime import datetime, timezone
@@ -287,19 +285,8 @@ def response_plan(scan: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def write_evidence_bundle(directory: Path, report: Dict[str, Any]) -> Dict[str, Any]:
-    """Write a non-overwriting local JSON evidence bundle and SHA-256 manifest."""
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=False)
-    report_path = directory / "incident.json"
-    encoded = (json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
-    report_path.write_bytes(encoded)
-    manifest = {
-        "format_version": 1,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "files": [{"name": report_path.name, "size_bytes": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}],
-        "evidence_scope": "local report only; no NAS files were changed or copied",
-    }
-    manifest_bytes = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
-    (directory / "manifest.json").write_bytes(manifest_bytes)
-    return manifest
+def write_evidence_bundle(directory: Path, report: Dict[str, Any], **options: Any) -> Dict[str, Any]:
+    """Backward-compatible entry point for the shared atomic capsule writer."""
+    from .evidence_capsule import write_evidence_capsule
+
+    return write_evidence_capsule(directory, report, **options)

@@ -4,6 +4,7 @@
 
 - Add opt-in, fail-soft HTTPS webhook notifications for unhealthy health results and suspected incident scans; keep indeterminate health opt-in and the mutation gate closed. Scrub password/sid/qtoken assignments from redacted string values used in payloads.
 - Privacy fix: webhook findings and unknowns no longer include free-text messages; summaries use only fixed trigger/status/count text.
+- Add atomic, recursively redacted incident evidence capsules with codes-only summaries, format v2 payload hashes, and optional exact-example sample attachments under a combined byte cap; keep the mutation gate closed.
 
 ## 0.3.0 — 2026-11-06
 

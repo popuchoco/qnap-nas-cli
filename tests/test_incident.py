@@ -134,7 +134,7 @@ class IncidentTest(unittest.TestCase):
             manifest = write_evidence_bundle(target, {"assessment": "indeterminate"})
             raw = (target / "incident.json").read_bytes()
             self.assertEqual(manifest["files"][0]["sha256"], hashlib.sha256(raw).hexdigest())
-            self.assertEqual(json.loads((target / "manifest.json").read_text(encoding="utf-8"))["format_version"], 1)
+            self.assertEqual(json.loads((target / "manifest.json").read_text(encoding="utf-8"))["format_version"], 2)
             with self.assertRaises(FileExistsError):
                 write_evidence_bundle(target, {})
 
