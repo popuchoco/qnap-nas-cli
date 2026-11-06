@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-06
+
 - Add opt-in redacted File Station dump capture, offline fixture replay, and structural/leak validation; the reviewed live TS-431K fixture and redactor privacy fix landed in `5ad937e`. Synthetic fixtures remain for clean/IOC/truncation edge cases only.
 - Validate the QTS web path on 2026-11-06: `status` and `health` were exercised, and `repair plan`/`apply` returned `refused`. The existing checklist/tooling remains; the mutation gate stays closed and no mutation adapter is added.
 - Add the `qts_smart_details` MCP tool with bounded disk-bay validation.
