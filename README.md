@@ -20,6 +20,7 @@
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
+- `0.3.0` 之後已合入 opt-in HTTPS webhook、`qts report health`（外部 cron／systemd timer，無 daemon）與 atomic Evidence Capsule；版本號仍為 `0.3.0`（未另打 tag／PyPI）。mutation gate 仍關閉；第二管理帳號與第二機型仍未驗證。
 
 維護者：`popuchoco <p.choco@daum.net>`
 
@@ -48,7 +49,7 @@
 - `mcp`：提供十個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
-Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
+Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案；rescue／`--attach-candidate` 匯出的樣本一律存成安全檔名 `samples/sample-NNN.bin`（非原始 NAS 路徑），原始 File Station 路徑保留在 manifest／receipt 的 `source` 欄位。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
 
 本版不提供 RAID 重建、SMART 修復、Container Station 停止、Tailscale 重啟、惡意程序 suspend/kill、QTS 防火牆修改、惡意檔案刪除或 NAS 上直接還原。通用 plan/apply 執行引擎可由測試用 adapter 驗證，但正式 adapter 必須先有指定機型／韌體的實機契約測試、前置條件與第二管理路徑、before/after readback、失敗中止與回復程序。
 
@@ -106,7 +107,7 @@ qts incident rescue case-2026-01/incident.json --json
 # 後續可將 report 中精確列出的 IOC 範例附加到同一 capsule；合計上限預設 100 MiB。
 qts incident evidence case-2026-01/incident.json case-with-sample \
   --attach-candidate '/Public/!!!READ_ME.txt' --max-bytes 104857600
-# Rescue 同樣只接受 report 已列出的 IOC 範例，並使用安全樣本檔名；不是 NAS restore。
+# Rescue 同樣只接受 report 已列出的 IOC 範例，並存成 samples/sample-NNN.bin；不是 NAS restore。
 qts incident rescue case-2026-01/incident.json --candidate-path '/Public/!!!READ_ME.txt' --directory case-sample
 
 # 一般修復流程目前只會建立明確拒絕執行的計畫，不會修改 NAS
@@ -204,7 +205,7 @@ qts fixture validate qts-dump-ts431k --json
 
 1. **scan**：保存有限掃描、health、可用的 RAID/QPKG observation 與 coverage gaps。
 2. **contain**：只輸出人工步驟，建議從 router/switch 限制外部與不必要用戶端流量，同時保留受控管理／取證路徑；不自動更改 NAS firewall 或 stop process。
-3. **evidence**：建立全新本機目錄、保存 JSON report 和 SHA-256 manifest。`rescue --candidate-path` 只可匯出 report 已列出的 IOC 範例，使用串流與大小上限，另算 SHA-256；不執行檔案、不傳回 NAS。
+3. **evidence**：建立全新本機目錄、保存 JSON report、codes-only `summary.md` 和 SHA-256 manifest。`rescue --candidate-path`／`--attach-candidate` 只可匯出 report 已列出的 IOC 範例，使用串流與大小上限，另算 SHA-256，並寫入 `samples/sample-NNN.bin`（`source` 留在 receipt）；不執行檔案、不傳回 NAS。
 4. **rescue**：全量資料復原仍需先遏止、可信任重建與修補，再由離線／不可變備份恢復至新位置、驗證後切換；本 CLI 不會在疑似受感染 NAS 上覆寫還原。若疑似正在進行 Qlocker 活動，請依 QNAP 對應事件指引處理；家族與韌體不同時應以對應官方公告為準。
 
 ### QNAP 官方事件與 API 參考
@@ -257,11 +258,11 @@ CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 whee
 ## Roadmap
 
 1. 已完成：以 TS-431K/QTS 5.2.8 真實 fixture 固化 system、disk、volume 與 SMART summary parsing。
-2. 進行中：以 TS-431K 真實 SSH fixture 固化 SMART attributes、RAID `/proc/mdstat`、Container Station 與 Tailscale 狀態。
+2. 已完成／有已知 unknown：以 TS-431K 真實 SSH fixture 與 live smoke 固化 RAID `/proc/mdstat`、實體磁碟拓樸、Container Station／Tailscale QPKG metadata；`smart-details` 在此韌體仍為 `unavailable_on_firmware`（空 `get_hd_smartinfo`、無 `smartctl`），不宣稱 SMART attributes 已齊；`md9`／`md13` QNAP 128-wide bitmap 語義仍 unknown。
 3. 完成唯讀面與依賴圖後，只挑 1～2 個低風險、可逆操作；每項強制 plan、dry-run、明確確認、post-verify 與 rescue steps。
 4. 只有在確認第二管理帳號、SSH／本地復原路徑與失聯處置後，才評估更高風險操作。
 5. RAID rebuild、SMART repair、磁碟寫入與大幅防火牆修改不列入早期版本。
-6. Webhook 告警、排程健康報告與 Evidence Capsule。
+6. 已完成：Webhook 告警、排程健康報告與 Evidence Capsule（已合 `main`；版本仍 `0.3.0`，未另打 tag／PyPI）。
 
 ## 授權與商標
 
