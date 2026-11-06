@@ -41,6 +41,14 @@ class CliTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("manual_response_required", output.getvalue())
 
+    def test_missing_config_returns_2(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = io.StringIO()
+            with patch.object(sys, "stderr", output):
+                code = main(["--config", str(Path(temp) / "missing.json"), "status"])
+        self.assertEqual(code, 2)
+        self.assertIn("尚未設定 NAS", output.getvalue())
+
     def test_repair_apply_offline_refuses_manual_only_plan(self):
         with tempfile.TemporaryDirectory() as temp:
             plan = Path(temp) / "plan.json"

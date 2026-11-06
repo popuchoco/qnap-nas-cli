@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the `qts_smart_details` MCP tool with bounded disk-bay validation.
+- Sync installation and publishing documentation with the published PyPI 0.2.0 release.
+- Strengthen incident coverage and CLI exit-code contract tests.
 - Add Traditional Chinese installation and credential injection guides; surface the support policy in README.
 
 ## 0.2.0 — 2026-11-06

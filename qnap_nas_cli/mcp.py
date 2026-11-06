@@ -4,7 +4,7 @@ import sys
 from typing import Any, Callable, Dict
 
 from . import __version__
-from .commands import disks_ssh, health, incident_report, network, raid, services, storage, sysinfo, tailscale
+from .commands import disks_ssh, health, incident_report, network, raid, services, smart_details, storage, sysinfo, tailscale
 from .config import Config, password_from_environment
 from .client import QtsClient
 from .errors import QtsError
@@ -18,6 +18,7 @@ TOOLS = [
     {"name": "qts_network", "description": "List observable QTS network adapters and DNS", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_tailscale", "description": "Read Tailscale state through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_raid", "description": "Read and parse /proc/mdstat through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "qts_smart_details", "description": "Read SMART attributes for one disk bay through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {"disk": {"type": "integer", "minimum": 1, "maximum": 64}}, "required": ["disk"]}},
     {"name": "qts_disk_topology", "description": "Read physical disk bay, role and model through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_services", "description": "Read Container Station and Tailscale package state", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_incident", "description": "Bounded read-only ransomware IOC triage for visible shares plus health evidence; never reports clean and never contains/remediates", "inputSchema": {"type": "object", "properties": {"max_items": {"type": "integer", "minimum": 1, "maximum": MAX_MAX_ITEMS, "default": DEFAULT_MAX_ITEMS}}}},
@@ -42,6 +43,13 @@ def call_tool(config: Config, name: str, arguments: Dict[str, Any] = None) -> Di
         "qts_network": network,
     }
     ssh_operations = {"qts_tailscale": tailscale, "qts_raid": raid, "qts_disk_topology": disks_ssh, "qts_services": services}
+    if name == "qts_smart_details":
+        if set(arguments) != {"disk"}:
+            raise QtsError("只接受 disk 整數參數")
+        disk = arguments["disk"]
+        if type(disk) is not int or not 1 <= disk <= 64:
+            raise QtsError("disk 必須介於 1 到 64")
+        return smart_details(config, disk)
     if name in ssh_operations:
         if arguments:
             raise QtsError("此 MCP tool 不接受參數")

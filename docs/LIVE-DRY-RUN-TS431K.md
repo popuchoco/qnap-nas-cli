@@ -6,6 +6,8 @@ Validation attempted on 2026-11-04 against the previously used TS-431K LAN endpo
 
 Overall result: **live read-only dry-run verified; mutation gate remains blocked**. The first attempt failed because no accepted automation key or stored credential was available. After the operator authenticated interactively and installed a dedicated temporary Ed25519 public key, fixed SSH probes succeeded. They identified internal model `TS-X41`, QTS 5.2.8 build 20251216, five md arrays, Container Station/Tailscale QPKG metadata and live Tailscale status. No password, TOTP, SID, private key material, hostname or address is stored in this report.
 
+**File Station / incident scan still needs a reviewed real-device fixture (仍需 reviewed fixture).** Existing offline incident coverage uses synthetic `FakeFileStation` responses; no reviewed File Station dump fixture is present. A second administrator and a second device model also remain unproven, so the mutation gate stays closed.
+
 The live dry-run was bound to that observed model/firmware/build and used `unavailable_plan()` directly because the production CLI deliberately has no SSH mutation adapter. It returned `status: refused`, zero operations, four service-stop rescue steps, and both initial and repeated apply attempts returned `refused`. No service, package or setting was changed.
 
 ## Contract results

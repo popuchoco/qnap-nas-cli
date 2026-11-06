@@ -61,6 +61,15 @@ class IncidentTest(unittest.TestCase):
         self.assertTrue(result["coverage"]["truncated"])
         self.assertIn("item_limit", result["coverage"]["truncation_reasons"])
         self.assertEqual(result["coverage"]["status"], "partial")
+        self.assertNotEqual(result["assessment"], "clean")
+        self.assertIn(result["assessment"], ("indeterminate", "suspected"))
+
+    def test_truncated_scan_without_indicators_is_indeterminate_never_clean(self):
+        entries = [{"filename": "file-{}.txt".format(index), "isfolder": 0} for index in range(10)]
+        result = scan_ransomware_artifacts(FakeFileStation({"/Public": entries}), max_items=2)
+        self.assertTrue(result["coverage"]["truncated"])
+        self.assertFalse(result["indicators"])
+        self.assertEqual(result["assessment"], "indeterminate")
 
     def test_depth_limit_is_explicitly_reported_as_truncated(self):
         entries = {}
@@ -77,6 +86,8 @@ class IncidentTest(unittest.TestCase):
         self.assertTrue(coverage["truncated"])
         self.assertTrue(coverage["depth_limited"])
         self.assertIn("depth_limit", coverage["truncation_reasons"])
+        self.assertNotEqual(result["assessment"], "clean")
+        self.assertIn(result["assessment"], ("indeterminate", "suspected"))
 
     def test_archive_cluster_alone_is_indeterminate_and_requires_corroboration(self):
         entries = [{"filename": "backup-{}.7z".format(index), "isfolder": 0} for index in range(10)]
