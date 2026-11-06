@@ -7,7 +7,7 @@
 >
 > **支援政策：**僅支援最新的 `main` 與最新 release。
 >
-> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.2.0` 套件建置已就緒，但尚未發布到 PyPI；目前可用 editable install，待正式發布後再從 PyPI 安裝。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
+> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.2.0` 已發布到 PyPI，可用 pipx 或 pip 安裝；安裝方式見[安裝指南](docs/INSTALL.md)。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
@@ -43,26 +43,34 @@
 - `incident evidence`：保存 report 到新的本機目錄並寫 SHA-256 manifest；不宣稱包含 NAS 原始日誌。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
 - `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
-- `mcp`：提供九個唯讀 stdio MCP tools。
+- `mcp`：提供十個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
 本版不提供 RAID 重建、SMART 修復、Container Station 停止、Tailscale 重啟、惡意程序 suspend/kill、QTS 防火牆修改、惡意檔案刪除或 NAS 上直接還原。通用 plan/apply 執行引擎可由測試用 adapter 驗證，但正式 adapter 必須先有指定機型／韌體的實機契約測試、前置條件與第二管理路徑、before/after readback、失敗中止與回復程序。
 
 ## 安裝
 
-需求為 Python 3.8 以上，執行時不需要第三方套件。`0.2.0` 尚未發布到 PyPI；pipx、venv/pip 與離線 wheel 的安裝方式見[安裝指南](docs/INSTALL.md)。
+需求為 Python 3.8 以上，執行時不需要第三方套件。套件已發布到 PyPI；pipx、venv/pip、Git checkout 與離線 wheel 的安裝方式見[安裝指南](docs/INSTALL.md)。
 
 ```bash
-git clone https://github.com/popuchoco/qnap-nas-cli.git
-cd qnap-nas-cli
-python -m pip install -e .
+pipx install qnap-nas-cli
 qts --help
 qts --version
 ```
 
-也可直接從 checkout 執行，不必安裝：
+也可在虛擬環境中用 pip 安裝，或直接從 checkout 執行。完整步驟見[安裝指南](docs/INSTALL.md)：
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install qnap-nas-cli
+
+# 從 checkout 開發安裝
+git clone https://github.com/popuchoco/qnap-nas-cli.git
+cd qnap-nas-cli
+python -m pip install -e .
+
+# 或不安裝，直接執行
 python -m qnap_nas_cli --help
 ```
 
@@ -134,6 +142,7 @@ qts fixture validate qts-dump --json
 - `qts_network`
 - `qts_tailscale`
 - `qts_raid`
+- `qts_smart_details`
 - `qts_disk_topology`
 - `qts_services`
 - `qts_incident`（有限名稱 IOC 掃描；assessment 不會回報 clean）
