@@ -29,6 +29,7 @@
 - `doctor`／`whoami`：檢查本機條件並驗證 QTS 登入。
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
 - `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談，回報使用中的通用溫度門檻。
+- `report health`：將同一份唯讀 health observation 遮蔽後寫入新／空的本機目錄，包含時間戳記 JSON、只列 codes 的 Markdown 摘要與 SHA-256 manifest；可由外部 cron 或 systemd timer 呼叫。
 - `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要；可重複指定 `--volume-index N`，但尚無 endpoint 可證明全部 index 已查齊。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：從已驗證的 QPKG 安裝路徑執行固定的 `tailscale status --json`。
@@ -87,6 +88,7 @@ qts setup --origin https://192.0.2.10 --user ops \
 # 互動式輸入密碼；若帳號啟用 2FA，CLI 會接著提示 TOTP
 qts status
 qts health
+qts report health --directory qts-health-report
 qts storage --json
 qts storage --volume-index 1 --volume-index 2 --json
 qts network
@@ -122,6 +124,8 @@ qts fixture validate qts-dump --json
 ```
 
 若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。互動終端在 QTS 回報需要 2FA 時才提示 TOTP；非互動與 MCP 必須注入 `QTS_SECURITY_CODE`。密碼與驗證碼不接受命令列參數，也不會寫入設定檔。自動化注入與 shell history 安全說明見[憑證注入指南](docs/SECRETS.md)。
+
+排程請由外部 cron 或 systemd timer 呼叫 `qts report health`，並為每次執行提供新的輸出目錄。範例與 webhook 排程政策見[排程健康報告](docs/SCHEDULE.md)。
 
 ## MCP
 

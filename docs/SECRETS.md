@@ -42,3 +42,5 @@ QTS_PASSWORD='...' QTS_SECURITY_CODE='…' qts mcp
 - 密碼、2FA 驗證碼與 SID 不應寫入設定檔、log 或 fixture。
 
 更多安全規則見 [SECURITY.md](../SECURITY.md)；2FA 的設計決策見 [ADR-009](DEVELOPMENT_DECISIONS.md#adr-009--qts-2fa-remains-ephemeral)。
+
+Cron 與 systemd timer 的環境注入範例，以及 `qts report health` 的目錄和 exit code 語義，見[排程健康報告](SCHEDULE.md)。
