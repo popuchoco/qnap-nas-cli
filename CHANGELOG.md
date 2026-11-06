@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add Traditional Chinese installation and credential injection guides; surface the support policy in README.
+
 ## 0.2.0 — 2026-11-06
 
 - Prepare setuptools packaging and a gated PyPI trusted-publishing workflow; this release skeleton does not publish automatically without the configured `pypi` environment approval.

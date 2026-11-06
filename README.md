@@ -5,6 +5,8 @@
 
 > **支援範圍：**唯讀 QTS 診斷 CLI 與 MCP；已審查基線為 TS-431K / QTS 5.2.8，其他機型／韌體可能回報 unknown。請見[相容性表](COMPATIBILITY.md)與[觀察資料契約](docs/OBSERVATION_CONTRACT.md)。
 >
+> **支援政策：**僅支援最新的 `main` 與最新 release。
+>
 > **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.2.0` 套件建置已就緒，但尚未發布到 PyPI；目前可用 editable install，待正式發布後再從 PyPI 安裝。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
@@ -48,16 +50,17 @@
 
 ## 安裝
 
-需求為 Python 3.8 以上，不需要第三方套件。
+需求為 Python 3.8 以上，執行時不需要第三方套件。`0.2.0` 尚未發布到 PyPI；pipx、venv/pip 與離線 wheel 的安裝方式見[安裝指南](docs/INSTALL.md)。
 
 ```bash
 git clone https://github.com/popuchoco/qnap-nas-cli.git
 cd qnap-nas-cli
 python -m pip install -e .
 qts --help
+qts --version
 ```
 
-也可直接從 checkout 執行：
+也可直接從 checkout 執行，不必安裝：
 
 ```bash
 python -m qnap_nas_cli --help
@@ -107,7 +110,7 @@ qts dump qts-dump
 qts fixture validate qts-dump --json
 ```
 
-若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。互動終端在 QTS 回報需要 2FA 時才提示 TOTP；非互動與 MCP 必須注入 `QTS_SECURITY_CODE`。密碼與驗證碼不接受命令列參數，也不會寫入設定檔。
+若 stdin 不是終端，CLI 也能從 stdin 第一行讀取密碼。互動終端在 QTS 回報需要 2FA 時才提示 TOTP；非互動與 MCP 必須注入 `QTS_SECURITY_CODE`。密碼與驗證碼不接受命令列參數，也不會寫入設定檔。自動化注入與 shell history 安全說明見[憑證注入指南](docs/SECRETS.md)。
 
 ## MCP
 
