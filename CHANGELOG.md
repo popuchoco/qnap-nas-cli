@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add opt-in redacted File Station dump capture, offline fixture replay, and structural/leak validation; the synthetic fixture remains unreviewed pending live capture.
+- Document the QTS web login checklist for 小鑫 and keep it offline until an operator runs it; no mutation adapter is added.
 - Add the `qts_smart_details` MCP tool with bounded disk-bay validation.
 - Sync installation and publishing documentation with the published PyPI 0.2.0 release.
 - Strengthen incident coverage and CLI exit-code contract tests.

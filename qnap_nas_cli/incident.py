@@ -29,7 +29,10 @@ def _rows(payload: Any, key: Optional[str] = None) -> List[Dict[str, Any]]:
     elif isinstance(payload, dict):
         if payload.get("status") not in (None, 1, "1"):
             raise QtsError("File Station 回報 status={}".format(payload.get("status")))
-        rows = payload.get(key) if key else None
+        if key:
+            rows = payload.get(key)
+        else:
+            rows = next((payload.get(name) for name in ("datas", "shares", "tree", "items") if isinstance(payload.get(name), list)), None)
     else:
         rows = None
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):

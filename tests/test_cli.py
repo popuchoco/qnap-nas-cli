@@ -22,6 +22,12 @@ class CliTest(unittest.TestCase):
         self.assertTrue(args.json)
         self.assertEqual(str(args.config), "custom.json")
 
+    def test_filestation_dump_flag_is_optional(self):
+        plain = parser().parse_args(["dump"])
+        extended = parser().parse_args(["dump", "--filestation"])
+        self.assertFalse(plain.filestation)
+        self.assertTrue(extended.filestation)
+
     def test_incident_nested_command_flags_and_bounds(self):
         args = parser().parse_args(["incident", "scan", "--max-items", "250", "--json"])
         self.assertEqual(args.max_items, 250)
@@ -58,6 +64,43 @@ class CliTest(unittest.TestCase):
                 code = main(["repair", "apply", str(plan), "--confirm", "unused", "--json"])
         self.assertEqual(code, 2)
         self.assertIn('"status": "refused"', output.getvalue())
+
+    def test_successful_identity_read_still_refuses_plan_and_apply_without_mutation(self):
+        class ReadOnlyClient:
+            def __init__(self):
+                self.identity_reads = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return None
+
+            def get_xml(self, path, params):
+                self.identity_reads += 1
+                import xml.etree.ElementTree as ET
+                return ET.fromstring("<QDocRoot><modelName>TS-X41</modelName><version>5.2.8</version><build>20251216</build></QDocRoot>")
+
+        client = ReadOnlyClient()
+        config = Config("https://nas.invalid", "operator")
+        with tempfile.TemporaryDirectory() as temporary:
+            plan_path = Path(temporary) / "plan.json"
+            output = io.StringIO()
+            with patch("qnap_nas_cli.cli._config", return_value=config), \
+                 patch("qnap_nas_cli.cli.QtsClient", return_value=client), \
+                 patch("qnap_nas_cli.cli._login"), \
+                 patch.object(sys, "stdout", output):
+                plan_code = main(["repair", "plan", "--action", "service-stop", "--output", str(plan_path), "--json"])
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            self.assertEqual(plan_code, 2)
+            self.assertEqual(plan["status"], "refused")
+            self.assertEqual(plan["operations"], [])
+            self.assertEqual(client.identity_reads, 1)
+
+            with patch.object(sys, "stdout", io.StringIO()):
+                apply_code = main(["repair", "apply", str(plan_path), "--confirm", plan["plan_id"], "--json"])
+            self.assertEqual(apply_code, 2)
+            self.assertEqual(client.identity_reads, 1)
 
     def test_doctor_reports_actual_config_and_local_http_as_safe(self):
         result = _doctor(Config("http://127.0.0.1:8080", "ops"), Path("custom.json"))

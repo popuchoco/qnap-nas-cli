@@ -1,0 +1,27 @@
+{
+  "format_version": 1,
+  "provenance_status": "synthetic-shape-pending-live-capture",
+  "redacted": true,
+  "limits": {
+    "max_shares": 5000,
+    "max_items": 10000,
+    "page_size": 200,
+    "max_depth": 0
+  },
+  "shares_visible": 1,
+  "shares_captured": 1,
+  "items_captured": 2,
+  "truncated": false,
+  "pages": [
+    {
+      "share": "ShareA",
+      "path": "/ShareA",
+      "start": 0,
+      "limit": 200,
+      "total": 2,
+      "returned": 2,
+      "file": "list__ShareA__0.json",
+      "truncated": false
+    }
+  ]
+}

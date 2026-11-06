@@ -2,7 +2,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from qnap_nas_cli.parsers import _unique, merge_storage, parse_network, parse_storage, parse_system
-from qnap_nas_cli.redaction import redact_xml, redact_value
+from qnap_nas_cli.redaction import redact_filestation_value, redact_xml, redact_value
 
 
 SYSINFO = b"""<QDocRoot>
@@ -83,6 +83,25 @@ class ParserTest(unittest.TestCase):
         value = redact_value({"serial": "ABC", "message": "from 192.168.1.2"})
         self.assertEqual(value["serial"], "REDACTED")
         self.assertEqual(value["message"], "from x.x.x.x")
+
+    def test_filestation_redaction_removes_sensitive_values_and_placeholders_share_paths(self):
+        payload = {
+            "hostname": "MYNAS",
+            "ip": "192.168.1.22",
+            "mac": "00:11:22:33:44:55",
+            "sid": "SID-SECRET-123",
+            "qtoken": "QTOKEN-SECRET-123",
+            "username": "operator-secret",
+            "text": "PrivateShare",
+            "datas": [{"id": "/PrivateShare", "path": "/PrivateShare/folder", "filename": "report.txt"}],
+            "message": "from 10.1.2.3 via 00-11-22-33-44-55 sid=inline-secret qtoken=inline-token",
+        }
+        value = redact_filestation_value(payload, {"/PrivateShare": "/ShareA", "PrivateShare": "ShareA"})
+        rendered = str(value)
+        for secret in ("MYNAS", "192.168.1.22", "00:11:22:33:44:55", "SID-SECRET-123", "QTOKEN-SECRET-123", "operator-secret", "PrivateShare", "inline-secret", "inline-token"):
+            self.assertNotIn(secret, rendered)
+        self.assertEqual(value["datas"][0]["id"], "/ShareA")
+        self.assertEqual(value["datas"][0]["path"], "/ShareA/folder")
 
 
 if __name__ == "__main__":

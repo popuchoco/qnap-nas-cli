@@ -15,13 +15,13 @@
 
 ## 自動化 CLI 與 MCP
 
-以下 `...` 與 `123456` 是示例佔位值，請勿替換後把真實秘密直接貼入會保存命令歷史的 shell：
+以下 `...` 與 `…` 是示例佔位值，請勿替換後把真實秘密直接貼入會保存命令歷史的 shell：
 
 ```bash
 QTS_PASSWORD='...' qts --json health
-QTS_PASSWORD='...' QTS_SECURITY_CODE='123456' qts --json health
+QTS_PASSWORD='...' QTS_SECURITY_CODE='…' qts --json health
 QTS_PASSWORD='...' qts mcp
-QTS_PASSWORD='...' QTS_SECURITY_CODE='123456' qts mcp
+QTS_PASSWORD='...' QTS_SECURITY_CODE='…' qts mcp
 ```
 
 由秘密管理工具或服務管理器在啟動程序時注入環境變數。不要將密碼或 TOTP 寫入 shell 腳本、shell history、設定檔、log 或 fixture。若 QTS 帳號啟用 2FA，非互動 CLI 與 MCP 在需要 2FA 時必須預先提供 `QTS_SECURITY_CODE`；這些模式不會提示輸入。MCP 執行需要 `QTS_PASSWORD`。CLI 讀取 `QTS_SECURITY_CODE` 時會去除空白；MCP 則直接使用環境變數原值，不做空白處理。

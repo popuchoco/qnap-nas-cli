@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import tempfile
 from pathlib import Path
 
-from qnap_nas_cli.commands import health, storage, validate_dump
+from qnap_nas_cli.commands import dump, health, storage, validate_dump
 from qnap_nas_cli.errors import QtsError
 
 
@@ -18,6 +18,30 @@ class FakeClient:
 
 
 class CommandsTest(unittest.TestCase):
+    def test_dump_filestation_is_opt_in_and_uses_a_new_manifest_format(self):
+        class DumpClient:
+            def __init__(self):
+                self.json_calls = []
+
+            def get(self, path, params):
+                return b"<QDocRoot><modelName>TS-X41</modelName></QDocRoot>"
+
+            def get_json(self, path, params):
+                self.json_calls.append(dict(params))
+                return []
+
+        client = DumpClient()
+        with tempfile.TemporaryDirectory() as temporary:
+            plain = dump(client, Path(temporary) / "plain")
+            self.assertEqual(plain["format_version"], 2)
+            self.assertFalse(client.json_calls)
+
+            captured = dump(client, Path(temporary) / "with-filestation", filestation=True)
+            self.assertEqual(captured["format_version"], 3)
+            self.assertEqual(client.json_calls[0]["func"], "get_tree")
+            self.assertTrue(captured["validation"]["valid"])
+            self.assertEqual(captured["validation"]["filestation"]["list_files"], 0)
+
     def test_storage_queries_explicit_volume_indices_without_claiming_full_coverage(self):
         class IndexedClient(FakeClient):
             def __init__(self):
