@@ -24,7 +24,6 @@ from .redaction import redact_value
 SCHEMA = "qnap-nas-cli.webhook.v1"
 MAX_BODY_BYTES = 8192
 MAX_ITEMS = 8
-MAX_MESSAGE_CHARS = 160
 _TRUTHY = {"1", "true", "yes"}
 
 
@@ -116,7 +115,6 @@ def _clean_items(items: Any, *, unknown: bool = False):
             truncated = True
             continue
         code, code_truncated = _text(item.get("code", "unknown"), 80)
-        message, message_truncated = _text(item.get("message", ""), MAX_MESSAGE_CHARS)
         entry = {"code": code or "unknown"}
         if not unknown:
             severity, severity_truncated = _text(item.get("severity"), 32)
@@ -126,9 +124,8 @@ def _clean_items(items: Any, *, unknown: bool = False):
                 severity_truncated = False
         else:
             severity_truncated = False
-        entry["message"] = message
         cleaned.append(entry)
-        truncated = truncated or code_truncated or message_truncated or severity_truncated
+        truncated = truncated or code_truncated or severity_truncated
     return cleaned, truncated
 
 
@@ -147,16 +144,10 @@ def _incident_items(observation: Mapping[str, Any]):
                 truncated = True
                 continue
             code, was_truncated = _text(indicator.get("code", "incident_indicator"), 80)
-            family, family_truncated = _text(indicator.get("family", "incident"), 80)
-            count = indicator.get("count")
-            count_text = ""
-            if isinstance(count, (int, float)) and not isinstance(count, bool):
-                count_text = " (count {})".format(count)
-            message, message_truncated = _text("{} indicator observed{}".format(family, count_text), MAX_MESSAGE_CHARS)
             confidence = indicator.get("confidence")
             severity = "critical" if confidence == "high" else "warning" if confidence == "medium" else "info"
-            findings.append({"code": code or "incident_indicator", "severity": severity, "message": message})
-            truncated = truncated or was_truncated or family_truncated or message_truncated
+            findings.append({"code": code or "incident_indicator", "severity": severity})
+            truncated = truncated or was_truncated
 
     coverage = scan.get("coverage")
     unknowns = []
@@ -164,10 +155,10 @@ def _incident_items(observation: Mapping[str, Any]):
         issues = coverage.get("issues")
         if (coverage.get("status") == "partial" or coverage.get("truncated") is True or
                 coverage.get("depth_limited") is True or (isinstance(issues, list) and issues)):
-            unknowns.append({"code": "incident_scan_incomplete", "message": "Incident scan coverage is partial."})
+            unknowns.append({"code": "incident_scan_incomplete"})
     collection_errors = observation.get("collection_errors")
     if isinstance(collection_errors, list) and collection_errors:
-        unknowns.append({"code": "incident_collection_incomplete", "message": "Some incident observations could not be collected."})
+        unknowns.append({"code": "incident_collection_incomplete"})
     return findings, unknowns, truncated
 
 
@@ -198,8 +189,9 @@ def build_payload(
         findings, findings_truncated = _clean_items(observation.get("findings", []))
         unknowns, unknowns_truncated = _clean_items(observation.get("unknowns", []), unknown=True)
         truncated = findings_truncated or unknowns_truncated
+        status = "indeterminate" if trigger == "health.indeterminate" else "unhealthy"
         summary = "Health outcome: {} ({} finding(s), {} unknown(s)).".format(
-            observation.get("status", "unknown"), len(findings), len(unknowns)
+            status, len(findings), len(unknowns)
         )
         assessment = None
 
@@ -227,8 +219,13 @@ def build_payload(
         payload["truncated"] = True
 
     # Defense in depth: recursively apply the project's normal redactor before
-    # measuring or returning the payload.
+    # measuring or returning the payload. Re-apply allowlisted codes afterward
+    # because the generic SID-token scrubber can rewrite long underscore codes.
+    safe_findings = [{"code": item["code"], **({"severity": item["severity"]} if "severity" in item else {})} for item in findings]
+    safe_unknowns = [{"code": item["code"]} for item in unknowns]
     payload = redact_value(payload)
+    payload["findings"] = safe_findings
+    payload["unknowns"] = safe_unknowns
     if len(_compact(payload)) <= MAX_BODY_BYTES:
         return payload
 

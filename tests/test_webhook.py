@@ -19,6 +19,22 @@ from qnap_nas_cli.webhook import (
 )
 
 
+def _assert_payload_has_no_free_text_items(testcase, value, parent_key=None):
+    if isinstance(value, dict):
+        testcase.assertNotIn("message", value)
+        if parent_key == "findings":
+            testcase.assertTrue(set(value).issubset({"code", "severity"}))
+            testcase.assertIn("code", value)
+        elif parent_key == "unknowns":
+            testcase.assertTrue(set(value).issubset({"code"}))
+            testcase.assertIn("code", value)
+        for key, child in value.items():
+            _assert_payload_has_no_free_text_items(testcase, child, key)
+    elif isinstance(value, list):
+        for child in value:
+            _assert_payload_has_no_free_text_items(testcase, child, parent_key)
+
+
 class _Response:
     def __init__(self, status):
         self.status = status
@@ -62,7 +78,7 @@ class WebhookTest(unittest.TestCase):
                 "code": "disk_health", "severity": "warning", "message": "SMART warning",
                 "password": "PASSWORD_SENTINEL", "sid": "SID_SENTINEL",
             }],
-            "unknowns": [],
+            "unknowns": [{"code": "temperature_unavailable", "message": "detail", "sid": "SID_SENTINEL"}],
         }
         body = json.dumps(build_payload("health.unhealthy", observation), ensure_ascii=False)
         for secret in ("PASSWORD_SENTINEL", "SID_SENTINEL", "HOST_SENTINEL", "SERIAL_SENTINEL", "203.0.113.55"):
@@ -70,15 +86,34 @@ class WebhookTest(unittest.TestCase):
         payload = json.loads(body)
         self.assertEqual(payload["device"], {"model": "TS-X41", "firmware": "5.2.8", "build": "20251216"})
         self.assertNotIn("password", payload)
-        self.assertEqual(set(payload["findings"][0]), {"code", "severity", "message"})
+        self.assertEqual(set(payload["findings"][0]), {"code", "severity"})
+        self.assertEqual(set(payload["unknowns"][0]), {"code"})
+        _assert_payload_has_no_free_text_items(self, payload)
 
     def test_oversized_findings_are_truncated_and_body_is_capped(self):
         observation = {
             "status": "unhealthy",
-            "findings": [{"code": "finding_{}".format(i), "message": "x" * 1000} for i in range(100)],
-            "unknowns": [{"code": "unknown_{}".format(i), "message": "y" * 1000} for i in range(100)],
+            "findings": [
+                {"code": "finding.{}.".format(i) + ("x" * 20 + ".") * 10, "message": "discarded"}
+                for i in range(100)
+            ],
+            "unknowns": [
+                {"code": "unknown.{}.".format(i) + ("y" * 20 + ".") * 10, "message": "discarded"}
+                for i in range(100)
+            ],
         }
         payload = build_payload("health.unhealthy", observation)
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        self.assertTrue(payload["truncated"])
+        self.assertEqual(len(payload["findings"]), 8)
+        self.assertEqual(len(payload["unknowns"]), 8)
+        self.assertTrue(all(len(item["code"]) == 80 for item in payload["findings"] + payload["unknowns"]))
+        _assert_payload_has_no_free_text_items(self, payload)
+        self.assertLessEqual(len(body), MAX_BODY_BYTES)
+
+    def test_body_size_reduction_sets_truncated(self):
+        oversized_timestamp = ("x" * 20 + ".") * 500
+        payload = build_payload("health.unhealthy", {"findings": [], "unknowns": []}, emitted_at=oversized_timestamp)
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.assertTrue(payload["truncated"])
         self.assertLessEqual(len(body), MAX_BODY_BYTES)
@@ -208,17 +243,48 @@ class WebhookTest(unittest.TestCase):
             self.assertNotIn("CLI_QUERY_SECRET", errors.getvalue())
 
 
-    def test_finding_messages_scrub_password_assignments(self):
+    def test_canary_free_text_never_appears_in_payload(self):
+        canary = "CANARY_FINDING_TEXT_9f3a"
+        health_payload = build_payload("health.unhealthy", {
+            "status": "unhealthy " + canary,
+            "system": {"model": "TS-X41"},
+            "findings": [{"code": "disk_health", "severity": "warning", "message": canary, "details": canary}],
+            "unknowns": [{"code": "sensor_unavailable", "message": canary}],
+            "description": canary,
+        })
+        incident_payload = build_payload("incident.suspected", {
+            "assessment": "suspected",
+            "ransomware_scan": {
+                "assessment": "suspected",
+                "indicators": [{"code": "deadbolt_note", "family": canary, "message": canary, "count": 7}],
+                "coverage": {"status": "partial", "issues": [canary]},
+            },
+            "collection_errors": [canary],
+        })
+        for payload in (health_payload, incident_payload):
+            rendered = json.dumps(payload, ensure_ascii=False)
+            self.assertNotIn(canary, rendered)
+            _assert_payload_has_no_free_text_items(self, payload)
+        self.assertEqual(health_payload["summary"], "Health outcome: unhealthy (1 finding(s), 1 unknown(s)).")
+        self.assertEqual(incident_payload["summary"], "Incident scan assessment: suspected (1 indicator(s)).")
+        self.assertEqual(set(incident_payload["findings"][0]), {"code", "severity"})
+        self.assertEqual(incident_payload["findings"][0]["severity"], "info")
+        self.assertEqual(incident_payload["unknowns"], [
+            {"code": "incident_scan_incomplete"},
+            {"code": "incident_collection_incomplete"},
+        ])
+
+
+    def test_long_application_codes_survive_redaction(self):
         payload = build_payload("health.unhealthy", {
             "status": "unhealthy",
             "system": {"model": "TS-X41"},
-            "findings": [{"code": "x", "severity": "warning", "message": "password=SUPERSECRET pwd=OTHER"}],
-            "unknowns": [],
+            "findings": [{"code": "storage_scope_unverified", "severity": "warning", "message": "discard"}],
+            "unknowns": [{"code": "volume_status_unknown", "message": "discard"}],
         })
-        rendered = json.dumps(payload)
-        self.assertNotIn("SUPERSECRET", rendered)
-        self.assertNotIn("OTHER", rendered)
-        self.assertIn("password=REDACTED", rendered)
+        self.assertEqual(payload["findings"][0]["code"], "storage_scope_unverified")
+        self.assertEqual(payload["unknowns"][0]["code"], "volume_status_unknown")
+        _assert_payload_has_no_free_text_items(self, payload)
 
 
 if __name__ == "__main__":

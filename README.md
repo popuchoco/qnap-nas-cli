@@ -172,7 +172,7 @@ Volume 查詢目前固定使用 `func=extra_get&extra_vol_index=1`，回應仍�
 
 ## Webhook 通知
 
-Webhook 只在設定 `QTS_WEBHOOK_URL` 時啟用；URL 是 operator-local secret，僅接受 HTTPS，並使用預設 TLS 憑證驗證。`health` 的 `unhealthy` 及 `incident scan` 的 `suspected` 會通知；`indeterminate` 預設略過，可用 `QTS_WEBHOOK_ON_INDETERMINATE=true` 選擇啟用。可用 `--webhook`／`--no-webhook` 覆寫本次 CLI 呼叫。通知只會送出型號、韌體、build、有限 finding／unknown 摘要，不含憑證、hostname、序號、IP、share 名稱或 evidence 路徑。Delivery 使用短 timeout、不跟隨 redirect、不重試；錯誤不改變成功 observation 的 exit code。環境變數與秘密管理方式見[憑證注入指南](docs/SECRETS.md)。Mutation gate 仍關閉。
+Webhook 只在設定 `QTS_WEBHOOK_URL` 時啟用；URL 是 operator-local secret，僅接受 HTTPS，並使用預設 TLS 憑證驗證。`health` 的 `unhealthy` 及 `incident scan` 的 `suspected` 會通知；`indeterminate` 預設略過，可用 `QTS_WEBHOOK_ON_INDETERMINATE=true` 選擇啟用。可用 `--webhook`／`--no-webhook` 覆寫本次 CLI 呼叫。通知只會送出型號、韌體、build、有限 finding／unknown 摘要；findings 只含 code 與選用的 severity，unknowns 只含 code，不會送出自由文字訊息。Payload 不含憑證、hostname、序號、IP、share 名稱或 evidence 路徑。Delivery 使用短 timeout、不跟隨 redirect、不重試；錯誤不改變成功 observation 的 exit code。環境變數與秘密管理方式見[憑證注入指南](docs/SECRETS.md)。Mutation gate 仍關閉。
 
 TS-431K 的 `/sbin/get_hd_smartinfo -d 1..4` 實測皆為空，而且系統未安裝 `smartctl`；因此 `smart-details` 回傳 `data_status: unavailable_on_firmware`，不會假造 attributes。`md9`／`md13` 的 `[128/3]` QNAP wide bitmap 也不套用一般 Linux md 的底線判讀，`degraded` 會是 `null`。
 
