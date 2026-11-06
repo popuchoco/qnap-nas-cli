@@ -13,6 +13,7 @@ from .config import Config, default_config_path, load_config, password_from_envi
 from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evidence_bundle
+from .health_report import write_health_report
 from .remediation import apply_plan, unavailable_plan
 from .webhook import maybe_notify_health, maybe_notify_incident, webhook_enabled
 
@@ -42,6 +43,11 @@ def parser() -> argparse.ArgumentParser:
     subs.add_parser("status", help="系統型號、韌體、負載、溫度與 uptime")
     health_parser = subs.add_parser("health", help="唯讀磁碟與儲存健康稽核")
     health_parser.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
+    report_parser = subs.add_parser("report", help="建立本機唯讀健康報告")
+    report_subs = report_parser.add_subparsers(dest="report_command", required=True)
+    report_health = report_subs.add_parser("health", help="執行 health 並寫入本機報告 bundle")
+    report_health.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
+    report_health.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
     storage_parser = subs.add_parser("storage", aliases=["disks", "volumes"], help="磁碟與儲存空間")
     storage_parser.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
     subs.add_parser("network", help="網路介面與 DNS")
@@ -83,15 +89,14 @@ def parser() -> argparse.ArgumentParser:
     repair_apply = repair_subs.add_parser("apply", help="驗證 plan 與確認碼；未註冊的 mutation adapter 一律拒絕")
     repair_apply.add_argument("plan_file", type=Path)
     repair_apply.add_argument("--confirm", required=True, help="逐字輸入 plan_id；拒絕未驗證操作")
-    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply)
+    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health)
     for command_parser in nested_parsers:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_webhook_flags = command_parser.add_mutually_exclusive_group()
-        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", help="強制啟用符合條件的 webhook 通知")
-        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", help="停用 webhook 通知")
-        command_webhook_flags.set_defaults(webhook=argparse.SUPPRESS)
+        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", default=argparse.SUPPRESS, help="強制啟用符合條件的 webhook 通知")
+        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", default=argparse.SUPPRESS, help="停用 webhook 通知")
     seen = set()
     for command_parser in subs.choices.values():
         if id(command_parser) in seen:
@@ -101,9 +106,8 @@ def parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_webhook_flags = command_parser.add_mutually_exclusive_group()
-        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", help="強制啟用符合條件的 webhook 通知")
-        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", help="停用 webhook 通知")
-        command_webhook_flags.set_defaults(webhook=argparse.SUPPRESS)
+        command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", default=argparse.SUPPRESS, help="強制啟用符合條件的 webhook 通知")
+        command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", default=argparse.SUPPRESS, help="停用 webhook 通知")
     return root
 
 
@@ -260,6 +264,17 @@ def main(argv: Optional[list] = None) -> int:
             return 0
         if args.command == "mcp":
             return serve(config)
+        if args.command == "report":
+            indices = getattr(args, "volume_index", None)
+            with QtsClient(config) as client:
+                _login(client)
+                value = health(client, indices)
+            delivery = maybe_notify_health(value, force=args.webhook)
+            if delivery is not None or args.webhook is not None or webhook_enabled():
+                _add_webhook_result(value, args, delivery)
+            receipt = write_health_report(args.directory, value)
+            _print(receipt, args.json)
+            return 0
         if args.command == "incident":
             if args.incident_command == "rescue":
                 report = _read_json(args.report)

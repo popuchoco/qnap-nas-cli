@@ -15,6 +15,8 @@ _SENSITIVE_JSON_KEYS = {
     "ip", "email", "phone", "cookie", "token", "securitycode", "passwd",
     "authorization", "account", "owner", "realname", "session", "sessionid",
     "deviceid", "uuid", "credential", "credentials", "passphrase",
+    "secret", "secretkey", "apikey", "accesskey", "privatekey", "clientsecret",
+    "webhookurl",
 }
 _IPV4_RE = re.compile(r"(?<![\w:])(?:\d{1,3}\.){3}\d{1,3}(?![\w:])")
 _MAC_RE = re.compile(r"(?i)(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])")
