@@ -48,6 +48,7 @@ def parser() -> argparse.ArgumentParser:
     subs.add_parser("services", help="唯讀檢查 Container Station 與 Tailscale QPKG 狀態")
     dump_parser = subs.add_parser("dump", help="匯出已遮蔽敏感資料的相容性樣本")
     dump_parser.add_argument("directory", nargs="?", type=Path, default=Path("qts-dump"))
+    dump_parser.add_argument("--filestation", action="store_true", help="額外擷取已遮蔽的 File Station share root 與各 share 首頁")
     fixture_parser = subs.add_parser("fixture", help="驗證 dump/fixture 是否能安全解析")
     fixture_subs = fixture_parser.add_subparsers(dest="fixture_command", required=True)
     fixture_validate = fixture_subs.add_parser("validate", help="離線驗證已遮蔽的 dump")
@@ -309,7 +310,7 @@ def main(argv: Optional[list] = None) -> int:
                 data = sysinfo(client)
                 value = {"username": config.username, "hostname": data.get("hostname"), "model": data.get("model"), "origin": config.origin}
             elif args.command == "dump":
-                value = dump(client, args.directory)
+                value = dump(client, args.directory, filestation=args.filestation)
             else:
                 if args.command in ("storage", "disks", "volumes", "health"):
                     indices = getattr(args, "volume_index", None)

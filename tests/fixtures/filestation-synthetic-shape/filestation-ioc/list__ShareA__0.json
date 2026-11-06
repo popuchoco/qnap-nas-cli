@@ -1,0 +1,14 @@
+{
+  "status": 1,
+  "real_total": 2,
+  "datas": [
+    {
+      "filename": "synthetic-encrypted.deadbolt",
+      "isfolder": 0
+    },
+    {
+      "filename": "!!!READ_ME.txt",
+      "isfolder": 0
+    }
+  ]
+}

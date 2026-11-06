@@ -111,10 +111,12 @@ QTS_PASSWORD='...' qts --json health
 QTS_PASSWORD='...' qts mcp
 
 # 啟用 2FA 的帳號：驗證碼只存在當次 process environment
-QTS_PASSWORD='...' QTS_SECURITY_CODE='123456' qts --json health
+QTS_PASSWORD='...' QTS_SECURITY_CODE='…' qts --json health
 
 # 產生已遮蔽的相容性資料
 qts dump qts-dump
+# 可選：額外擷取已遮蔽 File Station（仍需實機＋人工審閱才算 reviewed fixture）
+qts dump --filestation qts-dump
 qts fixture validate qts-dump --json
 ```
 

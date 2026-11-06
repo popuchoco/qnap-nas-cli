@@ -26,7 +26,7 @@ Volume queries use `extra_get` with `extra_vol_index=1` by default; CLI/MCP can 
 
 ## Fixture contract
 
-`qts dump` v2 writes redacted sysinfo, volume, and SMART response files plus a versioned manifest and local parser validation. Redaction covers hostnames, serials, IP addresses, netmasks, MAC addresses, and DNS values while preserving non-secret capability flags. `qts fixture validate` performs the same validation without contacting a NAS. Synthetic unit fixtures test edge cases, but they are never labeled as device evidence.
+`qts dump` v2 writes redacted sysinfo, volume, and SMART response files plus a versioned manifest and local parser validation. Optional `qts dump --filestation` adds a format v3 manifest and bounded first pages for visible shares; File Station keys, addresses, share names/paths, and PII-like filenames are redacted before writing. Capture is limited to 5,000 shares, at most 10,000 returned entries, one page of at most 200 entries per share, and depth zero (within the incident scanner's 5,000-folder, 10,000-item, and depth-12 limits). `qts fixture validate` performs structural and leak-pattern checks without contacting a NAS. The checked-in File Station fixture is explicitly synthetic-shape-pending-live-capture, not a reviewed device fixture.
 
 The reviewed TS-431K fixture comes from QTS 5.2.8 build 20251216. The firmware reports the internal model alias `TS-X41`; compatibility must not rely only on the retail model string.
 

@@ -6,6 +6,7 @@ from typing import Any, Dict
 from .client import QtsClient
 from .config import Config
 from .errors import QtsError
+from .filestation_fixture import capture_filestation, validate_filestation_dump
 from .incident import DEFAULT_MAX_ITEMS, response_plan, scan_ransomware_artifacts
 from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
@@ -118,7 +119,7 @@ def health(client: QtsClient, volume_indices: Any = None) -> Dict[str, Any]:
     }
 
 
-def dump(client: QtsClient, directory: Path) -> Dict[str, Any]:
+def dump(client: QtsClient, directory: Path, filestation: bool = False) -> Dict[str, Any]:
     directory.mkdir(parents=True, exist_ok=True)
     responses = {
         "sysinfo.xml": client.get(SYSINFO_PATH, {"subfunc": "sysinfo"}),
@@ -130,13 +131,20 @@ def dump(client: QtsClient, directory: Path) -> Dict[str, Any]:
         target = directory / filename
         target.write_text(redact_xml(raw), encoding="utf-8")
         saved.append(filename)
+    if filestation:
+        file_station_manifest = capture_filestation(client, directory / "filestation")
+        saved.append("filestation/")
+    else:
+        file_station_manifest = None
     manifest = {
-        "format_version": 2,
+        "format_version": 3 if filestation else 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "redacted": True,
         "files": saved,
         "validation": validate_dump(directory),
     }
+    if file_station_manifest is not None:
+        manifest["filestation"] = file_station_manifest
     (directory / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest
 
@@ -170,12 +178,19 @@ def validate_dump(directory: Path) -> Dict[str, Any]:
     for volume in storage_data.get("volumes", []):
         if volume.get("status_semantics") == "unknown":
             warnings.append("unknown_volume_status:{}".format(volume.get("status_code")))
+    filestation_result = None
+    filestation_path = directory / "filestation"
+    if filestation_path.exists():
+        filestation_result = validate_filestation_dump(filestation_path)
+        if not filestation_result["valid"]:
+            errors.extend("filestation: {}".format(error) for error in filestation_result["errors"])
     return {
         "valid": not missing and not errors,
         "missing": missing,
         "errors": errors,
         "warnings": warnings,
         "observations": observations,
+        **({"filestation": filestation_result} if filestation_result is not None else {}),
     }
 
 
