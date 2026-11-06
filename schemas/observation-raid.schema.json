@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "qnap-nas-cli RAID observation",
+  "description": "The read-only ssh_backend.raid_status payload. RAID has its own observation shape and does not claim health.",
+  "type": "object",
+  "required": ["backend", "arrays", "array_count", "parser_warning"],
+  "properties": {
+    "backend": {"type": "string", "enum": ["ssh"]},
+    "arrays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "state", "level", "members", "degraded", "member_map_semantics"],
+        "properties": {
+          "name": {"type": "string"},
+          "state": {"type": "string"},
+          "level": {"type": "string"},
+          "members": {"type": "array", "items": {"type": "string"}},
+          "degraded": {"type": ["boolean", "null"]},
+          "member_map_semantics": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "array_count": {"type": "integer"},
+    "parser_warning": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — 2026-11-06
+
+- Prepare setuptools packaging and a gated PyPI trusted-publishing workflow; this release skeleton does not publish automatically without the configured `pypi` environment approval.
+- Freeze read-only health, storage, RAID, and incident observation schemas with stdlib contract tests.
+- Add contributor guidance, the TS-431K compatibility baseline, and the observation contract.
+- Keep the mutation gate closed; no production mutation adapter is included.
+
 ## 0.1.3 — 2026-11-03
 
 - Add shell-free read-only SSH probes for `/proc/mdstat`, physical disk topology, SMART attributes, and fixed Container Station/Tailscale package state.

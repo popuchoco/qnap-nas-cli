@@ -3,14 +3,18 @@
 [![CI](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **支援範圍：**唯讀 QTS 診斷 CLI 與 MCP；已審查基線為 TS-431K / QTS 5.2.8，其他機型／韌體可能回報 unknown。請見[相容性表](COMPATIBILITY.md)與[觀察資料契約](docs/OBSERVATION_CONTRACT.md)。
+>
+> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.2.0` 套件建置已就緒，但尚未發布到 PyPI；目前可用 editable install，待正式發布後再從 PyPI 安裝。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
+
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
-目前是 `0.1.3`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
+目前版本為 `0.2.0`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
 ## 目前狀態
 
 - 初始唯讀診斷版本已於 2026-11-03 發布到 `main`。
-- 73 項離線測試、Python bytecode compilation 與 CLI smoke test 均已通過；repair 已完成 SSH 身分綁定的零操作實機 dry-run，但第二管理帳號與 QTS web 路徑尚未驗證，因此 mutation gate 仍關閉，詳見 [`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md)。
+- CI 執行離線測試、Python bytecode compilation 與 CLI smoke test；repair 已完成 SSH 身分綁定的零操作實機 dry-run，但第二管理帳號與 QTS web 路徑尚未驗證，因此 mutation gate 仍關閉，詳見 [`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md)。
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
 - CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
