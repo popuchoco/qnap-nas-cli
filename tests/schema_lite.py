@@ -12,8 +12,28 @@ _TYPE_CHECKS = {
 }
 
 
-def validate(instance, schema, path="$"):
-    """Return validation errors for type/required/properties/enum/items/additionalProperties/minItems."""
+def _resolve_local_ref(root, reference):
+    if reference == "#":
+        return root
+    if not isinstance(reference, str) or not reference.startswith("#/"):
+        return None
+    value = root
+    for raw_part in reference[2:].split("/"):
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def validate(instance, schema, path="$", root=None):
+    """Validate used keywords including local JSON Pointer refs."""
+    root = schema if root is None else root
+    if "$ref" in schema:
+        resolved = _resolve_local_ref(root, schema["$ref"])
+        if resolved is None:
+            return ["{}: unresolved local reference {!r}".format(path, schema["$ref"])]
+        schema = resolved
     errors = []
     expected = schema.get("type")
     if expected is not None:
@@ -31,7 +51,7 @@ def validate(instance, schema, path="$"):
         properties = schema.get("properties", {})
         for key, child_schema in properties.items():
             if key in instance:
-                errors.extend(validate(instance[key], child_schema, "{}.{}".format(path, key)))
+                errors.extend(validate(instance[key], child_schema, "{}.{}".format(path, key), root))
         if schema.get("additionalProperties") is False:
             extras = set(instance) - set(properties)
             for key in sorted(extras):
@@ -44,5 +64,5 @@ def validate(instance, schema, path="$"):
         item_schema = schema.get("items")
         if item_schema is not None:
             for index, item in enumerate(instance):
-                errors.extend(validate(item, item_schema, "{}[{}]".format(path, index)))
+                errors.extend(validate(item, item_schema, "{}[{}]".format(path, index), root))
     return errors

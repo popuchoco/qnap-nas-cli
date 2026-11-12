@@ -15,6 +15,7 @@ from qnap_nas_cli.webhook import (
     deliver_webhook,
     maybe_notify_health,
     maybe_notify_incident,
+    maybe_notify_plex_security,
     webhook_enabled,
 )
 
@@ -204,6 +205,27 @@ class WebhookTest(unittest.TestCase):
             )
         self.assertEqual(result["status"], "delivered")
         self.assertEqual(deliver.call_count, 1)
+
+    def test_plex_security_notifications_are_allowlisted_and_indeterminate_is_opt_in(self):
+        observation = {
+            "assessment": "vulnerable_exposed",
+            "system": {"model": "TS-X41", "firmware": "5.2.8", "build": "20251216", "hostname": "SECRET"},
+            "findings": [{"code": "hbs3_below_fixed_baseline", "severity": "high", "message": "PRIVATE_CANARY"}],
+            "unknowns": [{"code": "qsnatch_control_unknown_qts_latest", "message": "PRIVATE_CANARY"}],
+        }
+        payload = build_payload("plex_security.alert", observation)
+        rendered = json.dumps(payload)
+        self.assertEqual(payload["assessment"], "vulnerable_exposed")
+        self.assertNotIn("PRIVATE_CANARY", rendered)
+        self.assertNotIn("SECRET", rendered)
+        with patch("qnap_nas_cli.webhook.deliver_webhook", return_value={"status": "delivered", "http_status": 204, "error": None}) as deliver:
+            self.assertEqual(maybe_notify_plex_security({"assessment": "indeterminate"}, env={"QTS_WEBHOOK_URL": "https://hooks.example/x"})["status"], "skipped")
+            self.assertEqual(maybe_notify_plex_security(
+                {"assessment": "indeterminate"},
+                env={"QTS_WEBHOOK_URL": "https://hooks.example/x", "QTS_WEBHOOK_ON_INDETERMINATE": "yes"},
+            )["status"], "delivered")
+            self.assertEqual(maybe_notify_plex_security(observation, env={"QTS_WEBHOOK_URL": "https://hooks.example/x"})["status"], "delivered")
+        self.assertEqual(deliver.call_count, 2)
 
     def test_cli_flags_are_mutually_exclusive_and_available_after_command(self):
         self.assertTrue(parser().parse_args(["--webhook", "health"]).webhook)

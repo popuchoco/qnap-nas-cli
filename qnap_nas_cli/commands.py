@@ -11,7 +11,8 @@ from .incident import DEFAULT_MAX_ITEMS, response_plan, scan_ransomware_artifact
 from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
 from .security import assess_plex2shell
-from .ssh_backend import disk_topology, plex_known_process_iocs, plex_qpkg_info, raid_status, service_status, smart_attributes, tailscale_status
+from .legacy_ransomware import assess_legacy_ransomware
+from .ssh_backend import disk_topology, legacy_ransomware_packages, plex_known_process_iocs, plex_qpkg_info, raid_status, service_status, smart_attributes, tailscale_status
 
 
 SYSINFO_PATH = "/cgi-bin/management/manaRequest.cgi"
@@ -228,6 +229,19 @@ def plex2shell_audit(
     package = plex_qpkg_info(config)
     runtime_iocs = plex_known_process_iocs(config) if check_known_process_iocs else None
     return assess_plex2shell(package, exposure_during_vulnerable_version, current_exposure, indicators, runtime_iocs)
+
+
+def legacy_ransomware_audit(
+    client: QtsClient,
+    config: Config,
+    historical_exposure: Any = None,
+    current_exposure: Any = None,
+    qsnatch_controls: Any = None,
+) -> Dict[str, Any]:
+    """Compare fixed package metadata and operator confirmations with QNAP advisories."""
+    system = sysinfo(client)
+    packages = legacy_ransomware_packages(config)
+    return assess_legacy_ransomware(system, packages, historical_exposure, current_exposure, qsnatch_controls)
 
 
 def incident_report(client: QtsClient, config: Config, max_items: int = DEFAULT_MAX_ITEMS) -> Dict[str, Any]:

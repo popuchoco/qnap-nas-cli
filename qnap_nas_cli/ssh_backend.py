@@ -22,6 +22,16 @@ ALLOWED_COMMANDS = {
     "plex_ioc_myawesomeproxy": (["pidof", "myawesomeproxy"], (0, 1)),
     "plex_ioc_mylovelyminer": (["pidof", "mylovelyminer"], (0, 1)),
     "plex_ioc_x12345": (["pidof", "x12345"], (0, 1)),
+    "legacy_hbs3_version": (["/sbin/getcfg", "HybridBackup", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_hbs3_enabled": (["/sbin/getcfg", "HybridBackup", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_photo_station_version": (["/sbin/getcfg", "PhotoStation", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_photo_station_enabled": (["/sbin/getcfg", "PhotoStation", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_malware_remover_version": (["/sbin/getcfg", "MalwareRemover", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_malware_remover_enabled": (["/sbin/getcfg", "MalwareRemover", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_security_center_version": (["/sbin/getcfg", "SecurityCenter", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_security_center_enabled": (["/sbin/getcfg", "SecurityCenter", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_security_counselor_version": (["/sbin/getcfg", "SecurityCounselor", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "legacy_security_counselor_enabled": (["/sbin/getcfg", "SecurityCounselor", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
 }
 PLEX_KNOWN_PROCESS_IOCS = ("myawesomeproxy", "mylovelyminer", "x12345")
 
@@ -170,6 +180,39 @@ def plex_qpkg_info(config: Config) -> Dict[str, Any]:
         "version_source": "QPKG metadata (/etc/config/qpkg.conf)",
         "runtime_health": "unknown",
     }
+
+
+def legacy_ransomware_packages(config: Config) -> Dict[str, Any]:
+    """Read only fixed QPKG version/Enable fields relevant to legacy advisories."""
+    sections = {
+        "hbs3": "HybridBackup",
+        "photo_station": "PhotoStation",
+        "malware_remover": "MalwareRemover",
+        "security_center": "SecurityCenter",
+        "security_counselor": "SecurityCounselor",
+    }
+    packages = {}
+    for key in sections:
+        values = {}
+        unavailable = False
+        for field in ("version", "enabled_raw"):
+            try:
+                values[field] = run_ssh(config, "legacy_{}_{}".format(key, field.replace("_raw", ""))).strip()
+            except QtsError:
+                unavailable = True
+                values[field] = ""
+        enabled_raw = values["enabled_raw"].lower()
+        enabled = True if enabled_raw in ("true", "1", "yes") else False if enabled_raw in ("false", "0", "no") else None
+        has_metadata = bool(values["version"] or enabled_raw)
+        packages[key] = {
+            "package": sections[key],
+            "installed": True if has_metadata else None if unavailable else False,
+            "version": values["version"] or None,
+            "enabled": enabled,
+            "qpkg_status": None,
+            "metadata_source": "QPKG metadata (/etc/config/qpkg.conf)",
+        }
+    return packages
 
 
 def plex_known_process_iocs(config: Config) -> Dict[str, Any]:

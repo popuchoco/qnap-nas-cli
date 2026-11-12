@@ -32,6 +32,7 @@
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
 - `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談，回報使用中的通用溫度門檻。
 - `report health`：將同一份唯讀 health observation 遮蔽後寫入新／空的本機目錄，包含時間戳記 JSON、只列 codes 的 Markdown 摘要與 SHA-256 manifest；可由外部 cron 或 systemd timer 呼叫。
+- `report plex2shell`：以相同的 atomic/redacted bundle 方式排程輸出 Plex 修補狀態；已知程序名稱探針需明確 opt-in，Webhook 只傳送 allowlisted finding/status codes。
 - `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要；可重複指定 `--volume-index N`，但尚無 endpoint 可證明全部 index 已查齊。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：從已驗證的 QPKG 安裝路徑執行固定的 `tailscale status --json`。
@@ -40,6 +41,7 @@
 - `smart-details DISK`：以已驗證的 bay 編號讀取 QNAP SMART attributes；韌體空回應會明確標為 unavailable。
 - `services`：唯讀觀察 Container Station／Tailscale QPKG metadata，不把 `Status=complete` 誤稱為 daemon 正常運行。
 - `security audit plex2shell`：比較 Plex QPKG 版本與 QNAP 修補基線；可選擇用固定 `pidof` 查三個已知程序名，其他指標由管理者回報；不是完整入侵掃描，也不會修改 NAS。
+- `security audit legacy-ransomware`：以固定 QPKG metadata 比對已公布的 HBS 3／Photo Station 修補基線，並提供 QSnatch 安全控制的人工確認欄位；韌體基線未知、定義新鮮度、掃描完成狀態與感染狀態一律不猜測。細節見[舊版勒索軟體與 QSnatch 稽核](docs/LEGACY-RANSOMWARE.md)。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
 - `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
@@ -48,7 +50,7 @@
 - `incident evidence`：以 private staging 和 atomic directory publish 保存遞迴遮蔽後的 report、codes-only `summary.md` 與 format v2 SHA-256 manifest；可重複指定最多 100 個 `--attach-candidate`，但每個路徑都必須精確出現在 report 的 indicator examples，並受 `--max-bytes` 合計上限限制。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
 - `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
-- `mcp`：提供十一個唯讀 stdio MCP tools。
+- `mcp`：提供十二個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
 Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案；rescue／`--attach-candidate` 匯出的樣本一律存成安全檔名 `samples/sample-NNN.bin`（非原始 NAS 路徑），原始 File Station 路徑保留在 manifest／receipt 的 `source` 欄位。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
@@ -105,6 +107,9 @@ qts security audit plex2shell --json
 qts security audit plex2shell --exposure-during-vulnerable-version yes --current-exposure no --json
 qts security audit plex2shell --ioc-malware-remover-detection yes --json
 qts security audit plex2shell --check-known-process-iocs --json
+qts security audit legacy-ransomware --json
+qts security audit legacy-ransomware --qsnatch-control qts_latest=yes \
+  --qsnatch-control malware_remover_updated_and_scan_run=yes --json
 
 # 勒索事件：有限掃描，建立 atomic 本機 evidence capsule
 qts incident scan --max-items 10000 --evidence-dir case-2026-01 --json
@@ -166,6 +171,7 @@ qts fixture validate qts-dump --json
 - `qts_plex_security` (QPKG version posture plus optional operator-reported exposure; not an incident/compromise scan)
 - [Plex2Shell audit scope, version rule, and operator response](docs/PLEX2SHELL.md)
 - `qts_incident`（有限名稱 IOC 掃描；assessment 不會回報 clean）
+- `qts_legacy_ransomware_security`（Qlocker／DeadBolt／QSnatch posture 與人工 QSnatch control confirmation）
 
 MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 
@@ -180,6 +186,15 @@ MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。
 當結果為 `indeterminate` 時也會輸出 `healthy_claim: not_permitted`；這不是「可能健康」的捷徑，而是明確表示目前證據不足、不能宣告 healthy。Storage 的 `limitations` 會列出未驗證的 volume coverage 與 SMART 深度限制。
 
 已知異常放在 `findings`；資料不足放在 `unknowns`。兩者不互相替代。原始 `status_code` 仍保留，方便用真實 fixture 校準新韌體。
+
+## 安全公告覆蓋
+
+舊版 Qlocker、DeadBolt、QSnatch 的唯讀查核範圍、版本基線、人工確認限制與官方參考來源列於[舊版勒索軟體與 QSnatch 稽核](docs/LEGACY-RANSOMWARE.md)。程式不會把套件版本或無命中掃描解讀成「乾淨」，也不會自動安裝更新、啟動掃描或更改 NAS 設定。
+
+- [QNAP QSA-21-13：HBS 3 弱點公告](https://www.qnap.com/en-as/security-advisory/qsa-21-13)；[Qlocker 官方處置指引](https://www.qnap.com/static/landing/2021/qlocker/response/zh-hk/)；[NTHU ESS Qlocker 通知](https://ess.site.nthu.edu.tw/p/406-1351-205347,r1602.php?Lang=zh-tw)。
+- [QNAP QSA-22-24：DeadBolt／Photo Station 公告](https://www.qnap.com/zh-tw/security-advisory/qsa-22-24)；[2022 年 DeadBolt 事件說明](https://www.qnap.com/zh-tw/security-news/2022/%E9%87%9D%E5%B0%8D-9-%E6%9C%88%E4%BB%BD-deadbolt-%E4%BA%8B%E4%BB%B6%E7%9A%84%E8%AA%AA%E6%98%8E)。
+- [QNAP NAS-201911-01：QSnatch 公告](https://www.qnap.com/zh-tw/security-advisory/nas-201911-01)；[QNAP 2020 QSnatch 後續說明](https://www.qnap.com/zh-tw/security-news/2020/%E5%9B%9E%E6%87%89-qsnatch-%E6%94%BB%E6%93%8A%E4%BA%8B%E4%BB%B6%E6%83%A1%E6%84%8F%E8%BB%9F%E9%AB%94%E7%84%A1%E8%AE%8A%E7%A8%AE%E5%8F%97%E5%BD%B1%E9%9F%BF%E7%94%A8%E6%88%B6%E6%95%B8%E6%8C%81%E7%BA%8C%E7%B8%AE%E6%B8%9B)。
+- [QNAP File Station API v5](https://download.qnap.com/dev/QNAP_QTS_File_Station_API_v5.pdf)（唯讀共享資料夾掃描介面）。
 
 Volume 可用 `--volume-index` 重複指定，也可在 MCP `qts_storage`／`qts_health` 傳 `volume_indices`；預設仍為 index 1。沒有經實機核對的 index discovery API，因此即使查了多個 index，coverage 一樣是 `unverified`。系統 70°C、磁碟 55°C 是報告揭露的 generic default，不是經各機型校正的安全界線。
 

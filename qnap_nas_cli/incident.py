@@ -273,7 +273,7 @@ def response_plan(scan: Dict[str, Any]) -> Dict[str, Any]:
     if suspected:
         steps.insert(0, {"step": 0, "action": "高度優先：停止一般使用者寫入並保留證據；不要用此 CLI 終止程序或重啟 NAS。若懷疑仍在加密，依 QNAP 對應家族公告處置並先聯絡支援。", "mode": "manual"})
     if "Qlocker" in families:
-        steps.insert(1 if suspected else 0, {"step": 0, "action": "Qlocker 家族特定：若加密／壓縮仍在進行，QNAP 公告指示不要關機或重新啟動；先依當前 QNAP 支援指引處理並聯絡支援。這不是對其他家族的通用規則。", "mode": "family_specific_manual"})
+        steps.insert(1 if suspected else 0, {"step": 0, "action": "Qlocker 家族特定：若已確認受影響（加密／壓縮進行中或已完成），QNAP 指引要求不要關機、重新啟動或更新 QTS；依官方指引執行 Malware Remover 掃描並聯絡 QNAP 支援。此工具不會執行掃描、更新或修改 NAS。這不是對其他家族的通用規則。", "mode": "family_specific_manual"})
     for index, step in enumerate(steps, 1):
         step["step"] = index
     return {

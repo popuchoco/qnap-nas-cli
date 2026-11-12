@@ -7,6 +7,7 @@ from qnap_nas_cli.redaction import redact_filestation_value, redact_xml, redact_
 
 SYSINFO = b"""<QDocRoot>
 <hostname>TS-431K</hostname><modelName>TS-431K</modelName><version>5.2.0</version><build>20261001</build>
+<firmware><name>QTS</name></firmware>
 <cpu_usage>12 %</cpu_usage><total_memory>1024 MB</total_memory><free_memory>400 MB</free_memory><sys_tempc>42 C</sys_tempc>
 <uptime_day>3</uptime_day><uptime_hour>4</uptime_hour><uptime_min>5</uptime_min><uptime_sec>6</uptime_sec>
 <nic_cnt>1</nic_cnt><ifname1>eth0</ifname1><dname1>Adapter 1</dname1><eth_status1>1</eth_status1>
@@ -28,6 +29,7 @@ class ParserTest(unittest.TestCase):
     def test_system_metrics(self):
         result = parse_system(ET.fromstring(SYSINFO))
         self.assertEqual(result["model"], "TS-431K")
+        self.assertEqual(result["firmware_product"], "QTS")
         self.assertEqual(result["memory_used_mb"], 624)
         self.assertEqual(result["uptime"]["total_seconds"], 273906)
 

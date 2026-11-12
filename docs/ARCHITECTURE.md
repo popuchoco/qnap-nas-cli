@@ -36,6 +36,10 @@ The reviewed TS-431K fixture comes from QTS 5.2.8 build 20251216. The firmware r
 
 Interactive CLI authentication prompts for a TOTP only after QTS reports that the password phase requires 2FA. Non-interactive CLI and MCP never prompt inside their protocols and require the short-lived `QTS_SECURITY_CODE` environment variable.
 
+## Qlocker / DeadBolt / QSnatch posture audit
+
+`legacy_ransomware.py` applies only the fixed QSA-21-13 HBS 3 and QSA-22-24 Photo Station version baselines for explicitly mapped firmware branches, and reports QSnatch package/security posture from fixed QPKG metadata reads. NAS-201911-01 hardening controls are operator-confirmed yes/no inputs; omitted values remain `unknown`. App metadata does not prove Malware Remover definition freshness, scan completion, service configuration, exposure, or absence of compromise. CLI and MCP do not install/update software, run scanners, rotate credentials, remove accounts/apps, or change services/network settings. See [LEGACY-RANSOMWARE.md](LEGACY-RANSOMWARE.md).
+
 ## Mutation gate
 
 A future modifying command must provide all of the following before release:

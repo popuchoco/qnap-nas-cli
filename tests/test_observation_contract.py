@@ -9,6 +9,7 @@ from qnap_nas_cli.config import Config
 from qnap_nas_cli.mcp import TOOLS, handle_line, response
 from qnap_nas_cli.security import assess_plex2shell
 from qnap_nas_cli.ssh_backend import parse_mdstat
+from qnap_nas_cli.legacy_ransomware import assess_legacy_ransomware
 from schema_lite import validate
 
 
@@ -48,6 +49,7 @@ class ObservationContractTest(unittest.TestCase):
         cls.raid_schema = load_schema("observation-raid.schema.json")
         cls.incident_schema = load_schema("observation-incident.schema.json")
         cls.plex_security_schema = load_schema("observation-security-plex2shell.schema.json")
+        cls.legacy_ransomware_schema = load_schema("observation-security-legacy-ransomware.schema.json")
         client = SampleClient()
         cls.health_sample = health(client)
         cls.storage_sample = storage(client)
@@ -59,6 +61,11 @@ class ObservationContractTest(unittest.TestCase):
             "qpkg_status": "complete", "enabled": True, "data_status": "version_available",
             "version_source": "QPKG metadata (/etc/config/qpkg.conf)", "runtime_health": "unknown",
         })
+        unknown_package = {"installed": None, "version": None, "enabled": None, "qpkg_status": None}
+        cls.legacy_ransomware_sample = assess_legacy_ransomware(
+            {"model": "TS-431K", "firmware_product": "QTS", "firmware": "5.2.8", "build": "20251216"},
+            {name: dict(unknown_package) for name in ("hbs3", "photo_station", "malware_remover", "security_center", "security_counselor")},
+        )
 
     def assert_valid(self, instance, schema):
         self.assertEqual(validate(instance, schema), [])
@@ -71,6 +78,7 @@ class ObservationContractTest(unittest.TestCase):
         self.assert_valid(self.incident_sample, self.incident_schema)
         self.assert_valid(self.incident_sample["observations"]["health"], self.health_schema)
         self.assert_valid(self.plex_security_sample, self.plex_security_schema)
+        self.assert_valid(self.legacy_ransomware_sample, self.legacy_ransomware_schema)
         self.assertEqual(self.plex_security_sample["runtime_ioc_probes"]["status"], "not_requested")
         self.assertEqual(self.incident_sample["assessment"], "indeterminate")
 
@@ -82,6 +90,16 @@ class ObservationContractTest(unittest.TestCase):
         broken = copy.deepcopy(self.plex_security_sample)
         broken["assessment"] = "clean"
         self.assertTrue(validate(broken, self.plex_security_schema))
+
+    def test_legacy_ransomware_schema_and_qsnatch_mcp_contract(self):
+        self.assert_valid(self.legacy_ransomware_sample, self.legacy_ransomware_schema)
+        broken = copy.deepcopy(self.legacy_ransomware_sample)
+        broken["qsnatch_security_controls"]["controls"]["qts_latest"]["status"] = "maybe"
+        self.assertTrue(validate(broken, self.legacy_ransomware_schema))
+        tool = next(tool for tool in TOOLS if tool["name"] == "qts_legacy_ransomware_security")
+        controls = tool["inputSchema"]["properties"]["qsnatch_controls"]["properties"]
+        self.assertIn("malware_remover_updated_and_scan_run", controls)
+        self.assertEqual(controls["qts_latest"]["enum"], ["yes", "no"])
 
     def test_broken_health_shapes_fail_validation(self):
         missing_unknowns = copy.deepcopy(self.health_sample)

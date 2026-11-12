@@ -40,7 +40,7 @@ QNAP documents Qlocker archive/note behavior and DeadBolt's extension in its [Ql
 
 ### Contain
 
-`qts incident contain REPORT` returns an operator checklist, not commands. For a suspected event, reduce new writes and use router/switch controls to limit external and unnecessary client traffic while preserving a controlled evidence/management path. Avoid unreviewed NAS firewall changes, process kills, package stops, deletion or reboot from this CLI. If there is active encryption, use the QNAP guidance for the identified family and contact vendor support; QNAP's Qlocker guidance specifically says not to shut down/reboot during active encryption/compression.
+`qts incident contain REPORT` returns an operator checklist, not commands. For a suspected event, reduce new writes and use router/switch controls to limit external and unnecessary client traffic while preserving a controlled evidence/management path. Avoid unreviewed NAS firewall changes, process kills, package stops, deletion or reboot from this CLI. For a confirmed Qlocker-affected NAS, QNAP says not to shut down, reboot, or update QTS whether encryption/compression is in progress or complete; follow its current [Qlocker response guide](https://www.qnap.com/static/landing/2021/qlocker/response/zh-hk/), including vendor-directed Malware Remover handling, and contact QNAP support. This family-specific guidance is not a rule for other ransomware families, and this CLI does not run the scan or mutate the NAS.
 
 ### Preserve evidence
 

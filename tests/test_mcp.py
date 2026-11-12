@@ -11,7 +11,7 @@ class McpTest(unittest.TestCase):
     config = Config("http://127.0.0.1:8080", "test")
     def test_tools_are_read_only_named(self):
         names = {tool["name"] for tool in TOOLS}
-        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_smart_details", "qts_disk_topology", "qts_services", "qts_incident", "qts_plex_security"})
+        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_smart_details", "qts_disk_topology", "qts_services", "qts_incident", "qts_plex_security", "qts_legacy_ransomware_security"})
 
     def test_smart_details_schema_requires_bounded_disk(self):
         tool = next(tool for tool in TOOLS if tool["name"] == "qts_smart_details")

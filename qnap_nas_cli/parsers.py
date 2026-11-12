@@ -47,9 +47,12 @@ def parse_uptime(root: ET.Element) -> Optional[Dict[str, Any]]:
 def parse_system(root: ET.Element) -> Dict[str, Any]:
     total = integer(text(root, "total_memory"))
     free = integer(text(root, "free_memory"))
+    firmware_node = root.find(".//firmware")
+    firmware_product = text(firmware_node, "name") if firmware_node is not None else None
     return {
         "hostname": text(root, "hostname") or text(root, "server_name"),
         "model": text(root, "modelName") or text(root, "model"),
+        "firmware_product": firmware_product,
         "firmware": text(root, "version"),
         "build": text(root, "build"),
         "serial_number": text(root, "serial_number"),

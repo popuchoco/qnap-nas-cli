@@ -128,6 +128,14 @@ class IncidentTest(unittest.TestCase):
         self.assertEqual(plan["actions_applied"], [])
         self.assertEqual(plan["status"], "manual_response_required")
 
+    def test_qlocker_response_plan_carries_qnap_specific_no_shutdown_guidance(self):
+        plan = response_plan({"assessment": "suspected", "indicators": [{"family": "Qlocker"}]})
+        action = " ".join(step["action"] for step in plan["steps"])
+        self.assertIn("不要關機", action)
+        self.assertIn("更新 QTS", action)
+        self.assertIn("Malware Remover 掃描", action)
+        self.assertEqual(plan["actions_applied"], [])
+
     def test_evidence_bundle_is_new_directory_and_hashes_report(self):
         with tempfile.TemporaryDirectory() as temp:
             target = Path(temp) / "evidence"

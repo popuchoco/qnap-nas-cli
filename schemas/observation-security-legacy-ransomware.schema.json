@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QNAP legacy ransomware security posture observation",
+  "description": "Read-only QPKG metadata posture for QSA-21-13, QSA-22-24 and NAS-201911-01; not a compromise verdict.",
+  "type": "object",
+  "required": ["report_type", "format_version", "checked_at", "rule_id", "assessment", "system", "exposure", "package_posture", "security_apps", "qsnatch_security_controls", "findings", "unknowns", "recommended_actions", "references", "automation_supported", "scope"],
+  "properties": {
+    "report_type": {"type": "string", "enum": ["qnap_legacy_ransomware_posture"]},
+    "format_version": {"type": "integer", "enum": [1]},
+    "checked_at": {"type": "string"},
+    "rule_id": {"type": "string", "enum": ["qnap-legacy-ransomware-2026-11"]},
+    "assessment": {"type": "string", "enum": ["vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected", "patched", "indeterminate"]},
+    "system": {"type": "object", "required": ["model", "firmware_product", "firmware", "build"], "properties": {"model": {"type": ["string", "null"]}, "firmware_product": {"type": ["string", "null"]}, "firmware": {"type": ["string", "null"]}, "build": {"type": ["string", "null"]}}, "additionalProperties": false},
+    "exposure": {"type": "object", "required": ["historical_during_affected_package_version", "current_internet_exposure", "source"], "properties": {"historical_during_affected_package_version": {"type": "string", "enum": ["yes", "no", "unknown"]}, "current_internet_exposure": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false},
+    "package_posture": {"type": "object", "required": ["hbs3", "photo_station"], "properties": {"hbs3": {"$ref": "#/$defs/package"}, "photo_station": {"$ref": "#/$defs/package"}}, "additionalProperties": false},
+    "security_apps": {"type": "object", "required": ["malware_remover", "security_center", "security_counselor", "freshness", "scan_completed"], "properties": {"malware_remover": {"type": "object"}, "security_center": {"type": "object"}, "security_counselor": {"type": "object"}, "freshness": {"type": "string", "enum": ["unknown"]}, "scan_completed": {"type": "string", "enum": ["unknown"]}}, "additionalProperties": false},
+    "qsnatch_security_controls": {"type": "object", "required": ["source", "controls"], "properties": {"source": {"type": "string", "enum": ["operator_reported", "not_collected"]}, "controls": {"type": "object", "required": ["qts_latest", "apps_latest", "malware_remover_updated_and_scan_run", "security_counselor_updated_and_scan_run", "credentials_rotated", "accounts_reviewed", "access_protection_enabled", "unused_services_disabled", "external_access_hardened"], "properties": {"qts_latest": {"$ref": "#/$defs/operator_control"}, "apps_latest": {"$ref": "#/$defs/operator_control"}, "malware_remover_updated_and_scan_run": {"$ref": "#/$defs/operator_control"}, "security_counselor_updated_and_scan_run": {"$ref": "#/$defs/operator_control"}, "credentials_rotated": {"$ref": "#/$defs/operator_control"}, "accounts_reviewed": {"$ref": "#/$defs/operator_control"}, "access_protection_enabled": {"$ref": "#/$defs/operator_control"}, "unused_services_disabled": {"$ref": "#/$defs/operator_control"}, "external_access_hardened": {"$ref": "#/$defs/operator_control"}}, "additionalProperties": false}}, "additionalProperties": false},
+    "findings": {"type": "array", "items": {"type": "object", "required": ["severity", "code", "message"], "properties": {"severity": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "unknowns": {"type": "array", "items": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "recommended_actions": {"type": "array", "items": {"type": "string"}},
+    "references": {"type": "array", "items": {"type": "string"}},
+    "automation_supported": {"type": "boolean", "enum": [false]},
+    "scope": {"type": "string"}
+  },
+  "$defs": {
+    "operator_control": {"type": "object", "required": ["status", "label"], "properties": {"status": {"type": "string", "enum": ["yes", "no", "unknown"]}, "label": {"type": "string"}}, "additionalProperties": false},
+    "package": {"type": "object", "required": ["status", "version", "baseline", "installed"], "properties": {"status": {"type": "string", "enum": ["not_installed", "vulnerable", "patched", "unknown"]}, "version": {"type": ["string", "null"]}, "baseline": {"type": ["string", "null"]}, "installed": {"type": ["boolean", "null"]}}, "additionalProperties": true}
+  },
+  "additionalProperties": true
+}

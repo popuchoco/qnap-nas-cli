@@ -16,6 +16,7 @@ from .redaction import redact_value
 
 
 _SAFE_CODE = re.compile(r"^[a-z][a-z0-9_.:-]{0,79}$")
+_SAFE_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
 
 
 def _emission_time(value: Optional[datetime]) -> tuple:
@@ -92,7 +93,39 @@ def _codes(report: Mapping[str, Any], key: str) -> list:
     return result
 
 
-def _summary(report: Mapping[str, Any], emitted_at: str) -> bytes:
+def _summary(report: Mapping[str, Any], emitted_at: str, kind: str = "health") -> bytes:
+    if kind == "plex2shell":
+        assessment = report.get("assessment")
+        if assessment not in (
+            "not_installed", "vulnerable", "vulnerable_exposed", "potentially_compromised",
+            "suspected", "patched", "patched_but_exposed", "indeterminate",
+        ):
+            assessment = "unknown"
+        package = report.get("package")
+        if not isinstance(package, dict):
+            package = {}
+        version = package.get("version")
+        if not isinstance(version, str) or not _SAFE_VERSION.fullmatch(version):
+            version = "unknown"
+        patch_status = report.get("patch_status")
+        if patch_status not in ("patched", "vulnerable", "unknown"):
+            patch_status = "unknown"
+        lines = [
+            "# Plex2Shell security report",
+            "",
+            "- Assessment: `{}`".format(assessment),
+            "- Patch status: `{}`".format(patch_status),
+            "- Plex QPKG version: `{}`".format(_inline(version)),
+            "- Emitted at: `{}`".format(emitted_at),
+            "",
+            "- Finding codes: {}".format(", ".join("`{}`".format(_inline(code)) for code in _codes(report, "findings")) or "none"),
+            "- Unknown codes: {}".format(", ".join("`{}`".format(_inline(code)) for code in _codes(report, "unknowns")) or "none"),
+            "",
+            "This bounded report is not a clean bill of health or a complete compromise scan.",
+            "",
+        ]
+        return "\n".join(lines).encode("utf-8")
+
     status = report.get("status")
     if status not in ("healthy", "unhealthy", "indeterminate"):
         status = "unknown"
@@ -136,11 +169,13 @@ def _restore_codes(safe: Dict[str, Any], original: Mapping[str, Any]) -> None:
                 cleaned["code"] = code
 
 
-def write_health_report(
+def _write_observation_report(
     directory: Path,
     observation: Mapping[str, Any],
     *,
     emitted_at: Optional[datetime] = None,
+    kind: str = "health",
+    status_key: str = "status",
 ) -> Dict[str, Any]:
     """Publish a complete report bundle in a new or empty local directory.
 
@@ -159,10 +194,11 @@ def write_health_report(
         raise QtsError("health observation 根節點必須是 object")
     _restore_codes(safe_observation, observation)
     safe_observation["emitted_at"] = emitted
-    json_name = "health-{}.json".format(stamp)
-    summary_name = "health-{}.md".format(stamp)
+    prefix = "plex2shell" if kind == "plex2shell" else "health"
+    json_name = "{}-{}.json".format(prefix, stamp)
+    summary_name = "{}-{}.md".format(prefix, stamp)
     json_content = _json_bytes(safe_observation)
-    summary_content = _summary(safe_observation, emitted)
+    summary_content = _summary(safe_observation, emitted, kind)
     manifest_content = "".join(
         "{}  {}\n".format(hashlib.sha256(content).hexdigest(), name)
         for name, content in ((json_name, json_content), (summary_name, summary_content))
@@ -200,6 +236,28 @@ def write_health_report(
     return {
         "directory": str(target),
         "files": names,
-        "status": safe_observation.get("status"),
+        "status": safe_observation.get(status_key),
         "emitted_at": emitted,
     }
+
+
+def write_health_report(
+    directory: Path,
+    observation: Mapping[str, Any],
+    *,
+    emitted_at: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Publish a complete redacted health report bundle atomically."""
+    return _write_observation_report(directory, observation, emitted_at=emitted_at)
+
+
+def write_plex_security_report(
+    directory: Path,
+    observation: Mapping[str, Any],
+    *,
+    emitted_at: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Publish a complete redacted Plex2Shell posture report bundle atomically."""
+    return _write_observation_report(
+        directory, observation, emitted_at=emitted_at, kind="plex2shell", status_key="assessment"
+    )

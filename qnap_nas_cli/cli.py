@@ -8,16 +8,17 @@ from typing import Any, Dict, Optional
 
 from . import __version__
 from .client import QtsClient
-from .commands import disks_ssh, dump, health, incident_report, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale, validate_dump
+from .commands import disks_ssh, dump, health, incident_report, legacy_ransomware_audit, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale, validate_dump
 from .config import Config, default_config_path, load_config, password_from_environment, save_config
 from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evidence_bundle
 from .evidence_capsule import DEFAULT_MAX_BYTES, validate_attachments
-from .health_report import write_health_report
+from .health_report import write_health_report, write_plex_security_report
 from .remediation import apply_plan, unavailable_plan
 from .security import IOC_FIELDS
-from .webhook import maybe_notify_health, maybe_notify_incident, webhook_enabled
+from .legacy_ransomware import parse_qsnatch_control
+from .webhook import maybe_notify_health, maybe_notify_incident, maybe_notify_plex_security, webhook_enabled
 
 
 def parser() -> argparse.ArgumentParser:
@@ -50,6 +51,9 @@ def parser() -> argparse.ArgumentParser:
     report_health = report_subs.add_parser("health", help="執行 health 並寫入本機報告 bundle")
     report_health.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
     report_health.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
+    report_plex = report_subs.add_parser("plex2shell", help="執行 Plex 修補狀態稽核並寫入本機報告 bundle")
+    report_plex.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
+    report_plex.add_argument("--check-known-process-iocs", action="store_true", help="選用固定的三個 QNAP 可疑程序名稱檢查")
     storage_parser = subs.add_parser("storage", aliases=["disks", "volumes"], help="磁碟與儲存空間")
     storage_parser.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
     subs.add_parser("network", help="網路介面與 DNS")
@@ -105,7 +109,7 @@ def parser() -> argparse.ArgumentParser:
         option = "--ioc-{}".format(indicator_name.replace("_", "-"))
         plex_audit.add_argument(option, dest="ioc_" + indicator_name, choices=["yes", "no"], help="Operator-reported: {}".format(description))
 
-    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health)
+    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health, report_plex)
     for command_parser in nested_parsers:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -116,6 +120,16 @@ def parser() -> argparse.ArgumentParser:
     plex_audit.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     plex_audit.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     plex_audit.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    legacy_audit = audit_subs.add_parser("legacy-ransomware", help="Check Qlocker, DeadBolt and QSnatch-related package posture; no remediation")
+    legacy_audit.add_argument("--historical-internet-exposure", choices=["yes", "no"], help="Operator-reported exposure while an affected package version was installed")
+    legacy_audit.add_argument("--current-internet-exposure", choices=["yes", "no"], help="Operator-reported current Internet exposure")
+    legacy_audit.add_argument(
+        "--qsnatch-control", action="append", type=parse_qsnatch_control, metavar="CONTROL=yes|no",
+        help="Operator confirmation for a NAS-201911-01 control; repeat for multiple controls",
+    )
+    legacy_audit.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    legacy_audit.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    legacy_audit.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     seen = set()
     for command_parser in subs.choices.values():
         if id(command_parser) in seen:
@@ -292,14 +306,21 @@ def main(argv: Optional[list] = None) -> int:
         if args.command == "mcp":
             return serve(config)
         if args.command == "report":
-            indices = getattr(args, "volume_index", None)
-            with QtsClient(config) as client:
-                _login(client)
-                value = health(client, indices)
-            delivery = maybe_notify_health(value, force=args.webhook)
-            if delivery is not None or args.webhook is not None or webhook_enabled():
-                _add_webhook_result(value, args, delivery)
-            receipt = write_health_report(args.directory, value)
+            if args.report_command == "health":
+                indices = getattr(args, "volume_index", None)
+                with QtsClient(config) as client:
+                    _login(client)
+                    value = health(client, indices)
+                delivery = maybe_notify_health(value, force=args.webhook)
+                if delivery is not None or args.webhook is not None or webhook_enabled():
+                    _add_webhook_result(value, args, delivery)
+                receipt = write_health_report(args.directory, value)
+            else:
+                value = plex2shell_audit(config, check_known_process_iocs=args.check_known_process_iocs)
+                delivery = maybe_notify_plex_security(value, force=args.webhook)
+                if delivery is not None or args.webhook is not None or webhook_enabled():
+                    _add_webhook_result(value, args, delivery)
+                receipt = write_plex_security_report(args.directory, value)
             _print(receipt, args.json)
             return 0
         if args.command == "incident":
@@ -390,14 +411,27 @@ def main(argv: Optional[list] = None) -> int:
             }
             _print(ssh_operations[args.command](), args.json)
             return 0
-        if args.command == "security" and args.security_command == "audit" and args.audit_command == "plex2shell":
-            value = plex2shell_audit(
-                config,
-                args.exposure_during_vulnerable_version,
-                args.current_exposure,
-                {name: getattr(args, "ioc_" + name) for name in IOC_FIELDS if getattr(args, "ioc_" + name) is not None},
-                args.check_known_process_iocs,
-            )
+        if args.command == "security" and args.security_command == "audit":
+            if args.audit_command == "plex2shell":
+                value = plex2shell_audit(
+                    config,
+                    args.exposure_during_vulnerable_version,
+                    args.current_exposure,
+                    {name: getattr(args, "ioc_" + name) for name in IOC_FIELDS if getattr(args, "ioc_" + name) is not None},
+                    args.check_known_process_iocs,
+                )
+            else:
+                control_pairs = args.qsnatch_control or []
+                control_names = [name for name, _ in control_pairs]
+                if len(control_names) != len(set(control_names)):
+                    raise QtsError("同一個 --qsnatch-control 不可重複指定")
+                qsnatch_controls = dict(control_pairs)
+                with QtsClient(config) as client:
+                    _login(client)
+                    value = legacy_ransomware_audit(
+                        client, config, args.historical_internet_exposure, args.current_internet_exposure,
+                        qsnatch_controls,
+                    )
             _print(value, args.json)
             return 0
         operations = {

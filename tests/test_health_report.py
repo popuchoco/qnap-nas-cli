@@ -11,7 +11,7 @@ from unittest.mock import patch
 from qnap_nas_cli.cli import main, parser
 from qnap_nas_cli.config import Config
 from qnap_nas_cli.errors import QtsError
-from qnap_nas_cli.health_report import _write_staged_file, write_health_report
+from qnap_nas_cli.health_report import _write_staged_file, write_health_report, write_plex_security_report
 
 
 def synthetic_observation(status="unhealthy"):
@@ -145,6 +145,60 @@ class HealthReportWriterTest(unittest.TestCase):
                     write_health_report(unwritable, synthetic_observation(), emitted_at=self.emitted_at)
             self.assertEqual(list(unwritable.iterdir()), [])
 
+    def test_plex_security_report_is_atomic_timestamped_redacted_and_code_only_in_summary(self):
+        observation = {
+            "report_type": "qnap_plex2shell_posture",
+            "assessment": "suspected",
+            "patch_status": "patched",
+            "checked_at": "2026-11-06T00:00:00+00:00",
+            "package": {"package": "PlexMediaServer", "version": "1.43.3.10861", "runtime_health": "unknown"},
+            "findings": [{"code": "plex_ioc_known_process_mylovelyminer", "severity": "high", "message": "password=REPORT_MESSAGE_CANARY"}],
+            "unknowns": [{"code": "runtime_and_compromise_not_checked", "message": "sid=UNKNOWN_CANARY"}],
+            "references": ["https://example.invalid/"],
+            "password": "REPORT_PASSWORD_CANARY",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "plex-report"
+            receipt = write_plex_security_report(target, observation, emitted_at=self.emitted_at)
+            self.assertEqual(receipt["status"], "suspected")
+            self.assertEqual(receipt["files"], [
+                "plex2shell-20261106T043456Z.json",
+                "plex2shell-20261106T043456Z.md",
+                "manifest.sha256",
+            ])
+            payload = json.loads((target / receipt["files"][0]).read_text(encoding="utf-8"))
+            summary = (target / receipt["files"][1]).read_text(encoding="utf-8")
+            manifest = (target / "manifest.sha256").read_text(encoding="ascii")
+            for line in manifest.splitlines():
+                digest, name = line.split("  ", 1)
+                self.assertEqual(digest, hashlib.sha256((target / name).read_bytes()).hexdigest())
+
+        self.assertEqual(payload["assessment"], "suspected")
+        self.assertEqual(payload["findings"][0]["code"], "plex_ioc_known_process_mylovelyminer")
+        self.assertIn("Assessment: `suspected`", summary)
+        self.assertIn("Plex QPKG version: `1.43.3.10861`", summary)
+        self.assertIn("plex_ioc_known_process_mylovelyminer", summary)
+        self.assertNotIn("REPORT_MESSAGE_CANARY", summary)
+        self.assertNotIn("UNKNOWN_CANARY", summary)
+        rendered = json.dumps(payload)
+        self.assertNotIn("REPORT_PASSWORD_CANARY", rendered)
+        self.assertNotIn("REPORT_MESSAGE_CANARY", rendered)
+
+    def test_plex_summary_allowlists_patch_status_and_version_tokens(self):
+        observation = {
+            "assessment": "indeterminate",
+            "patch_status": "patched\n# injected",
+            "package": {"version": "1.2.3\n# injected"},
+            "findings": [], "unknowns": [],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "plex-report"
+            receipt = write_plex_security_report(target, observation, emitted_at=self.emitted_at)
+            summary = (target / receipt["files"][1]).read_text(encoding="utf-8")
+        self.assertIn("Patch status: `unknown`", summary)
+        self.assertIn("Plex QPKG version: `unknown`", summary)
+        self.assertNotIn("injected", summary)
+
 
 class HealthReportCliTest(unittest.TestCase):
     class Client:
@@ -202,6 +256,34 @@ class HealthReportCliTest(unittest.TestCase):
                  patch.object(sys, "stderr", error):
                 self.assertEqual(main(["report", "health", "--directory", str(Path(temporary) / "failed")]), 2)
             self.assertIn("error:", error.getvalue())
+
+    def test_plex_report_cli_runs_read_only_audit_and_publishes_local_report(self):
+        args = parser().parse_args([
+            "report", "plex2shell", "--directory", "out", "--check-known-process-iocs", "--no-webhook",
+        ])
+        self.assertEqual(args.command, "report")
+        self.assertEqual(args.report_command, "plex2shell")
+        self.assertTrue(args.check_known_process_iocs)
+        self.assertFalse(args.webhook)
+
+        config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
+        report = {"assessment": "suspected", "patch_status": "patched", "findings": [], "unknowns": []}
+        receipt = {"directory": "out", "status": "suspected", "files": ["plex2shell-report"]}
+        output = io.StringIO()
+        with patch("qnap_nas_cli.cli._config", return_value=config), \
+             patch("qnap_nas_cli.cli.plex2shell_audit", return_value=report) as audit, \
+             patch("qnap_nas_cli.cli.maybe_notify_plex_security", return_value=None) as notify, \
+             patch("qnap_nas_cli.cli.webhook_enabled", return_value=False), \
+             patch("qnap_nas_cli.cli.write_plex_security_report", return_value=receipt) as write_report, \
+             patch.object(sys, "stdout", output):
+            code = main(["report", "plex2shell", "--directory", "out", "--check-known-process-iocs", "--json"])
+
+        self.assertEqual(code, 0)
+        audit.assert_called_once_with(config, check_known_process_iocs=True)
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.kwargs["force"], None)
+        write_report.assert_called_once_with(Path("out"), report)
+        self.assertEqual(json.loads(output.getvalue()), receipt)
 
 
 if __name__ == "__main__":

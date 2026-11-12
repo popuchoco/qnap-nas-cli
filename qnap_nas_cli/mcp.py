@@ -4,12 +4,13 @@ import sys
 from typing import Any, Callable, Dict
 
 from . import __version__
-from .commands import disks_ssh, health, incident_report, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale
+from .commands import disks_ssh, health, incident_report, legacy_ransomware_audit, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale
 from .config import Config, password_from_environment
 from .client import QtsClient
 from .errors import QtsError
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS
 from .security import IOC_FIELDS
+from .legacy_ransomware import QSNATCH_CONTROLS
 
 
 TOOLS = [
@@ -37,6 +38,23 @@ TOOLS = [
                 "ioc_sustained_idle_cpu": {"type": "string", "enum": ["yes", "no"]},
                 "ioc_malware_remover_detection": {"type": "string", "enum": ["yes", "no"]},
                 "check_known_process_iocs": {"type": "boolean"}
+            }
+        }
+    },
+    {
+        "name": "qts_legacy_ransomware_security",
+        "description": "Read-only Qlocker/DeadBolt/QSnatch-related package posture using fixed HBS 3, Photo Station and security-app QPKG reads; firmware thresholds outside published branches remain unknown",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "historical_internet_exposure": {"type": "string", "enum": ["yes", "no"]},
+                "current_internet_exposure": {"type": "string", "enum": ["yes", "no"]},
+                "qsnatch_controls": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {name: {"type": "string", "enum": ["yes", "no"]} for name in QSNATCH_CONTROLS}
+                }
             }
         }
     },
@@ -93,6 +111,25 @@ def call_tool(config: Config, name: str, arguments: Dict[str, Any] = None) -> Di
             indicators,
             arguments.get("check_known_process_iocs", False),
         )
+    if name == "qts_legacy_ransomware_security":
+        allowed = {"historical_internet_exposure", "current_internet_exposure", "qsnatch_controls"}
+        if set(arguments) - allowed:
+            raise QtsError("只接受文件定義的 exposure 與 QSnatch 控制確認欄位")
+        for key in ("historical_internet_exposure", "current_internet_exposure"):
+            value = arguments.get(key)
+            if value is not None and value not in ("yes", "no"):
+                raise QtsError("{} must be 'yes' or 'no'".format(key))
+        controls = arguments.get("qsnatch_controls", {})
+        if not isinstance(controls, dict) or set(controls) - set(QSNATCH_CONTROLS):
+            raise QtsError("qsnatch_controls must contain only documented control names")
+        if any(value not in ("yes", "no") for value in controls.values()):
+            raise QtsError("QSnatch controls must be 'yes' or 'no'")
+        return _web_call(config, lambda client: legacy_ransomware_audit(
+            client, config,
+            arguments.get("historical_internet_exposure"),
+            arguments.get("current_internet_exposure"),
+            controls,
+        ))
     if name in ("qts_health", "qts_storage"):
         if set(arguments) - {"volume_indices"}:
             raise QtsError("只接受 volume_indices 參數")
