@@ -255,8 +255,6 @@ def assess_legacy_ransomware(
             "code": "legacy_photo_station_currently_exposed",
             "message": "管理者回報已停止更新的 Photo Station 目前可從 Internet 存取。",
         })
-        if assessment not in ("potentially_compromised", "vulnerable_exposed"):
-            assessment = "suspected"
 
     if historical_exposure == "yes" and not affected:
         unknowns.append({"code": "historical_exposure_package_history_missing", "message": "歷史暴露已回報，但目前 QPKG 版本不能重建當時版本；仍需人工事件檢視。"})

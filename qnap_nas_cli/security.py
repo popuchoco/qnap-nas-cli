@@ -110,7 +110,8 @@ def assess_plex2shell(
     runtime_probe = _normalize_runtime_iocs(runtime_iocs)
     reported_iocs = [name for name, value in ioc_values.items() if value == "yes"]
     runtime_hits = [item["name"] for item in runtime_probe["results"] if item["status"] == "found"]
-    installed = package.get("installed") is True
+    installed_value = package.get("installed")
+    installed = installed_value is True
     version = package.get("version")
     patched = is_patched_version(version)
     findings = []
@@ -123,9 +124,12 @@ def assess_plex2shell(
             "code": "historical_exposure_while_vulnerable",
             "message": "操作人員回報 Plex 在易受影響版本期間曾可從外部連線；更新版本不能排除既有入侵。",
         })
-    elif not installed:
+    elif installed_value is False:
         assessment = "not_installed"
         unknowns.append({"code": "plex_not_installed", "message": "未觀察到 Plex QPKG；不代表 NAS 沒有其他 Plex 安裝方式。"})
+    elif installed_value is not True:
+        assessment = "indeterminate"
+        unknowns.append({"code": "plex_installation_status_unknown", "message": "無法確認 Plex QPKG 是否安裝；不可將連線或收集失敗解讀為未安裝。"})
     elif patched is None:
         assessment = "indeterminate"
         unknowns.append({"code": "plex_version_unknown", "message": "QPKG 版本缺失或格式無法解析，不能判斷修補狀態。"})

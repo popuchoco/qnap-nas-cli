@@ -24,3 +24,15 @@ jobs:
       - run: python -m compileall -q qnap_nas_cli
       - run: python -m qnap_nas_cli --help
       - run: python -m pip wheel . --no-deps -w dist
+
+  windows-atomic-reports:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Test atomic report publication on Windows
+        run: python -m unittest discover -s tests -p "test_health_report.py" -v
+      - name: Test evidence capsule publication on Windows
+        run: python -m unittest discover -s tests -p "test_evidence_capsule.py" -v

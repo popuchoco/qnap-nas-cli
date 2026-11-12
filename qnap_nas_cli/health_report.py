@@ -17,6 +17,7 @@ from .redaction import redact_value
 
 _SAFE_CODE = re.compile(r"^[a-z][a-z0-9_.:-]{0,79}$")
 _SAFE_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
+_NUMERIC_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
 
 
 def _emission_time(value: Optional[datetime]) -> tuple:
@@ -202,6 +203,47 @@ def _restore_codes(safe: Dict[str, Any], original: Mapping[str, Any]) -> None:
                 cleaned["code"] = code
 
 
+def _restore_contract_fields(safe: Dict[str, Any], original: Mapping[str, Any], kind: str) -> None:
+    """Restore schema-owned identifiers and bounded version values after redaction.
+
+    Generic redaction must still process all free-form observation text. A small
+    allowlist restores only constants owned by this package and version-shaped
+    values in known posture fields (e.g. ``1.43.3.10861``), which otherwise
+    resemble IPv4 addresses to the generic scrubber.
+    """
+    identifiers = {
+        "plex2shell": ("qnap_plex2shell_posture", "plex2shell-qnap-2026-11"),
+        "legacy_ransomware": ("qnap_legacy_ransomware_posture", "qnap-legacy-ransomware-2026-11"),
+    }
+    expected = identifiers.get(kind)
+    if expected:
+        report_type, rule_id = expected
+        if original.get("report_type") == report_type:
+            safe["report_type"] = report_type
+        if original.get("rule_id") == rule_id:
+            safe["rule_id"] = rule_id
+
+    def restore_versions(source: Any, target: Any, path: tuple = ()) -> None:
+        if isinstance(source, dict) and isinstance(target, dict):
+            for key, source_value in source.items():
+                target_value = target.get(key)
+                child_path = path + (str(key),)
+                if isinstance(source_value, str) and isinstance(target_value, str):
+                    field = str(key).lower()
+                    if field in ("version", "baseline", "firmware") and _NUMERIC_VERSION.fullmatch(source_value.strip()):
+                        target[key] = source_value
+                    elif child_path == ("system", "build") and re.fullmatch(r"\d{6,8}", source_value):
+                        target[key] = source_value
+                else:
+                    restore_versions(source_value, target_value, child_path)
+        elif isinstance(source, list) and isinstance(target, list):
+            for source_value, target_value in zip(source, target):
+                restore_versions(source_value, target_value, path)
+
+    if kind in ("plex2shell", "legacy_ransomware"):
+        restore_versions(original, safe)
+
+
 def _write_observation_report(
     directory: Path,
     observation: Mapping[str, Any],
@@ -226,6 +268,7 @@ def _write_observation_report(
     if not isinstance(safe_observation, dict):
         raise QtsError("health observation 根節點必須是 object")
     _restore_codes(safe_observation, observation)
+    _restore_contract_fields(safe_observation, observation, kind)
     safe_observation["emitted_at"] = emitted
     prefix = {"plex2shell": "plex2shell", "legacy_ransomware": "legacy-ransomware"}.get(kind, "health")
     json_name = "{}-{}.json".format(prefix, stamp)

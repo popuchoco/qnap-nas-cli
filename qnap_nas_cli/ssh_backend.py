@@ -19,9 +19,9 @@ ALLOWED_COMMANDS = {
     "plex_version": (["/sbin/getcfg", "PlexMediaServer", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
     "plex_status": (["/sbin/getcfg", "PlexMediaServer", "Status", "-f", "/etc/config/qpkg.conf"], (0,)),
     "plex_enabled": (["/sbin/getcfg", "PlexMediaServer", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
-    "plex_ioc_myawesomeproxy": (["pidof", "myawesomeproxy"], (0, 1)),
-    "plex_ioc_mylovelyminer": (["pidof", "mylovelyminer"], (0, 1)),
-    "plex_ioc_x12345": (["pidof", "x12345"], (0, 1)),
+    "plex_ioc_myawesomeproxy": (["/bin/pidof", "myawesomeproxy"], (0, 1)),
+    "plex_ioc_mylovelyminer": (["/bin/pidof", "mylovelyminer"], (0, 1)),
+    "plex_ioc_x12345": (["/bin/pidof", "x12345"], (0, 1)),
     "legacy_hbs3_version": (["/sbin/getcfg", "HybridBackup", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
     "legacy_hbs3_enabled": (["/sbin/getcfg", "HybridBackup", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
     "legacy_photo_station_version": (["/sbin/getcfg", "PhotoStation", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
@@ -53,7 +53,7 @@ def _run_ssh_argv(config: Config, command: List[str], accepted_codes: Tuple[int,
         identity = Path(config.ssh_identity_file).expanduser()
         if not identity.is_file():
             raise QtsError("找不到 SSH identity file：{}".format(identity))
-        args.extend(["-i", str(identity)])
+        args.extend(["-o", "IdentitiesOnly=yes", "-i", str(identity)])
     args.extend(["--", target] + command)
     try:
         completed = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=30, check=False)
@@ -183,7 +183,7 @@ def plex_qpkg_info(config: Config) -> Dict[str, Any]:
 
 
 def legacy_ransomware_packages(config: Config) -> Dict[str, Any]:
-    """Read only fixed QPKG version/Enable fields relevant to legacy advisories."""
+    """Read fixed QPKG fields; fail on the first SSH error instead of retrying probes."""
     sections = {
         "hbs3": "HybridBackup",
         "photo_station": "PhotoStation",
@@ -194,19 +194,14 @@ def legacy_ransomware_packages(config: Config) -> Dict[str, Any]:
     packages = {}
     for key in sections:
         values = {}
-        unavailable = False
         for field in ("version", "enabled_raw"):
-            try:
-                values[field] = run_ssh(config, "legacy_{}_{}".format(key, field.replace("_raw", ""))).strip()
-            except QtsError:
-                unavailable = True
-                values[field] = ""
+            values[field] = run_ssh(config, "legacy_{}_{}".format(key, field.replace("_raw", ""))).strip()
         enabled_raw = values["enabled_raw"].lower()
         enabled = True if enabled_raw in ("true", "1", "yes") else False if enabled_raw in ("false", "0", "no") else None
         has_metadata = bool(values["version"] or enabled_raw)
         packages[key] = {
             "package": sections[key],
-            "installed": True if has_metadata else None if unavailable else False,
+            "installed": True if has_metadata else False,
             "version": values["version"] or None,
             "enabled": enabled,
             "qpkg_status": None,

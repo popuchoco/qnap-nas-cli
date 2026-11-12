@@ -1,15 +1,19 @@
 import copy
 import json
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from unittest.mock import patch
 
-from qnap_nas_cli.commands import health, incident_report, storage
+from qnap_nas_cli.commands import health, incident_report, legacy_ransomware_audit, plex2shell_audit, storage
 from qnap_nas_cli.config import Config
+from qnap_nas_cli.errors import QtsError
 from qnap_nas_cli.mcp import TOOLS, handle_line, response
 from qnap_nas_cli.security import assess_plex2shell
 from qnap_nas_cli.ssh_backend import parse_mdstat
 from qnap_nas_cli.legacy_ransomware import assess_legacy_ransomware
+from qnap_nas_cli.health_report import write_legacy_ransomware_report
 from schema_lite import validate
 
 
@@ -100,6 +104,48 @@ class ObservationContractTest(unittest.TestCase):
         controls = tool["inputSchema"]["properties"]["qsnatch_controls"]["properties"]
         self.assertIn("malware_remover_updated_and_scan_run", controls)
         self.assertEqual(controls["qts_latest"]["enum"], ["yes", "no"])
+
+    def test_real_legacy_assessment_bundle_remains_schema_valid_after_redaction(self):
+        packages = {
+            "hbs3": {"installed": True, "version": "16.0.0.414", "enabled": True},
+            "photo_station": {"installed": True, "version": "6.0.21", "enabled": True},
+            "malware_remover": {"installed": True, "version": "5.0", "enabled": True},
+            "security_center": {"installed": None, "version": None, "enabled": None},
+            "security_counselor": {"installed": None, "version": None, "enabled": None},
+        }
+        observation = assess_legacy_ransomware(
+            {"model": "TS-X41", "firmware_product": "QTS", "firmware": "4.5.2", "build": "20251216"},
+            packages,
+            historical_exposure="no",
+            current_exposure="no",
+        )
+        self.assertEqual(observation["report_type"], "qnap_legacy_ransomware_posture")
+        self.assertEqual(observation["rule_id"], "qnap-legacy-ransomware-2026-11")
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "legacy-bundle"
+            receipt = write_legacy_ransomware_report(target, observation)
+            bundle = json.loads((target / receipt["files"][0]).read_text(encoding="utf-8"))
+
+        self.assertEqual(validate(bundle, self.legacy_ransomware_schema), [])
+        self.assertEqual(bundle["report_type"], "qnap_legacy_ransomware_posture")
+        self.assertEqual(bundle["rule_id"], "qnap-legacy-ransomware-2026-11")
+        self.assertEqual(bundle["package_posture"]["hbs3"]["version"], "16.0.0.414")
+        self.assertEqual(bundle["system"]["build"], "20251216")
+
+    def test_ssh_collection_errors_validate_as_unknown_postures(self):
+        config = Config("https://nas.example", "ops", ssh_host="nas", ssh_user="ops")
+        with patch("qnap_nas_cli.commands.plex_qpkg_info", side_effect=QtsError("timeout")):
+            plex_report = plex2shell_audit(config, check_known_process_iocs=True)
+        self.assertEqual(validate(plex_report, self.plex_security_schema), [])
+        self.assertEqual(plex_report["assessment"], "indeterminate")
+        self.assertIsNone(plex_report["package"]["installed"])
+
+        with patch("qnap_nas_cli.commands.sysinfo", return_value={"model": "TS-X41", "firmware_product": "QTS", "firmware": "5.2.8", "build": "20251216"}), \
+             patch("qnap_nas_cli.commands.legacy_ransomware_packages", side_effect=QtsError("timeout")):
+            legacy_report = legacy_ransomware_audit(SampleClient(), config)
+        self.assertEqual(validate(legacy_report, self.legacy_ransomware_schema), [])
+        self.assertEqual(legacy_report["assessment"], "indeterminate")
+        self.assertEqual(legacy_report["collection_errors"][0]["code"], "ssh_collection_failed")
 
     def test_broken_health_shapes_fail_validation(self):
         missing_unknowns = copy.deepcopy(self.health_sample)

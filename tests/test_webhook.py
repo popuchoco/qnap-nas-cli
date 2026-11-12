@@ -224,6 +224,10 @@ class WebhookTest(unittest.TestCase):
             self.assertEqual(maybe_notify_plex_security(
                 {"assessment": "indeterminate"},
                 env={"QTS_WEBHOOK_URL": "https://hooks.example/x", "QTS_WEBHOOK_ON_INDETERMINATE": "yes"},
+            )["status"], "skipped")
+            self.assertEqual(maybe_notify_plex_security(
+                {"assessment": "indeterminate"},
+                env={"QTS_WEBHOOK_URL": "https://hooks.example/x", "QTS_WEBHOOK_ON_PLEX_INDETERMINATE": "yes"},
             )["status"], "delivered")
             self.assertEqual(maybe_notify_plex_security(observation, env={"QTS_WEBHOOK_URL": "https://hooks.example/x"})["status"], "delivered")
         self.assertEqual(deliver.call_count, 2)
@@ -248,11 +252,52 @@ class WebhookTest(unittest.TestCase):
             self.assertEqual(maybe_notify_legacy_ransomware(
                 {"assessment": "indeterminate"},
                 env={"QTS_WEBHOOK_URL": "https://hooks.example/x", "QTS_WEBHOOK_ON_INDETERMINATE": "yes"},
+            )["status"], "skipped")
+            self.assertEqual(maybe_notify_legacy_ransomware(
+                {"assessment": "indeterminate"},
+                env={"QTS_WEBHOOK_URL": "https://hooks.example/x", "QTS_WEBHOOK_ON_LEGACY_RANSOMWARE_INDETERMINATE": "yes"},
             )["status"], "delivered")
             self.assertEqual(maybe_notify_legacy_ransomware(
                 observation, env={"QTS_WEBHOOK_URL": "https://hooks.example/x"},
             )["status"], "delivered")
         self.assertEqual(deliver.call_count, 2)
+
+    def test_legacy_webhook_prioritizes_critical_findings_before_truncation(self):
+        observation = {
+            "assessment": "indeterminate",
+            "findings": [
+                {"code": "qsnatch_control_{}".format(index), "severity": "warning"}
+                for index in range(9)
+            ] + [
+                {"code": "hbs3_below_fixed_baseline", "severity": "high"},
+                {"code": "photo_station_currently_exposed", "severity": "high"},
+                {"code": "historically_exposed_vulnerable_package", "severity": "critical"},
+            ],
+            "unknowns": [],
+        }
+        payload = build_payload("legacy_ransomware.alert", observation)
+        codes = [item["code"] for item in payload["findings"]]
+        self.assertTrue(payload["truncated"])
+        self.assertEqual(payload["findings"][0]["severity"], "critical")
+        self.assertIn("hbs3_below_fixed_baseline", codes)
+        self.assertIn("photo_station_currently_exposed", codes)
+        self.assertEqual(len(codes), 8)
+
+    def test_legacy_high_finding_alert_does_not_relabel_assessment_as_suspected(self):
+        report = {
+            "assessment": "indeterminate",
+            "findings": [{"code": "legacy_photo_station_currently_exposed", "severity": "high"}],
+            "unknowns": [],
+        }
+        with patch("qnap_nas_cli.webhook.deliver_webhook", return_value={"status": "delivered", "http_status": 204, "error": None}) as deliver:
+            result = maybe_notify_legacy_ransomware(
+                report,
+                env={"QTS_WEBHOOK_URL": "https://hooks.example/x"},
+            )
+        self.assertEqual(result["status"], "delivered")
+        payload = json.loads(deliver.call_args.args[1].decode("utf-8"))
+        self.assertEqual(payload["trigger"], "legacy_ransomware.alert")
+        self.assertEqual(payload["assessment"], "indeterminate")
 
     def test_cli_flags_are_mutually_exclusive_and_available_after_command(self):
         self.assertTrue(parser().parse_args(["--webhook", "health"]).webhook)

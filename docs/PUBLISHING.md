@@ -1,6 +1,6 @@
 # PyPI 發布流程（維護者）
 
-`qnap-nas-cli` 的首次 `0.2.0` 發布已完成，套件目前可從 PyPI 安裝。本文件說明後續版本的發布流程。
+`qnap-nas-cli` 的 `0.4.0` 已發布至 PyPI。本文件說明後續版本的發布流程。Plex2Shell／legacy ransomware posture audits 與其排程報告仍在 `main` 開發中，待 TS-431K 實機 fixture 與相容性 gate 完成後再切版；不可在 live validation 前將它們納入已支援 release。
 
 ## 一次性維護者設定
 

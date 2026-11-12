@@ -226,9 +226,56 @@ def plex2shell_audit(
     """Assess Plex patch posture using only fixed, read-only QPKG probes."""
     if type(check_known_process_iocs) is not bool:
         raise QtsError("check_known_process_iocs must be boolean")
-    package = plex_qpkg_info(config)
-    runtime_iocs = plex_known_process_iocs(config) if check_known_process_iocs else None
-    return assess_plex2shell(package, exposure_during_vulnerable_version, current_exposure, indicators, runtime_iocs)
+    collection_error = None
+    try:
+        package = plex_qpkg_info(config)
+    except QtsError:
+        # A transport/configuration failure is not equivalent to an absent QPKG.
+        # Stop before the optional runtime probes and retain an explicit unknown.
+        package = {
+            "package": "PlexMediaServer", "installed": None, "version": None,
+            "qpkg_status": None, "enabled": None, "data_status": "collection_failed",
+            "version_source": "QPKG metadata (/etc/config/qpkg.conf)", "runtime_health": "unknown",
+        }
+        collection_error = {
+            "source": "plex_qpkg_metadata", "code": "ssh_collection_failed",
+            "message": "固定 Plex QPKG SSH 探針失敗；修補狀態維持 unknown。",
+        }
+    if check_known_process_iocs and collection_error:
+        runtime_iocs = {
+            "status": "partial",
+            "scope": "Exact-name probes were not attempted because the QPKG SSH collection failed.",
+            "results": [
+                {"name": name, "status": "not_attempted", "match_count": None}
+                for name in ("myawesomeproxy", "mylovelyminer", "x12345")
+            ],
+        }
+    else:
+        runtime_iocs = plex_known_process_iocs(config) if check_known_process_iocs else None
+    report = assess_plex2shell(package, exposure_during_vulnerable_version, current_exposure, indicators, runtime_iocs)
+    if collection_error:
+        report["collection_errors"] = [collection_error]
+        report["unknowns"].append({
+            "code": "plex_qpkg_collection_failed",
+            "message": collection_error["message"],
+        })
+    return report
+
+
+def _unknown_legacy_packages() -> Dict[str, Dict[str, Any]]:
+    names = {
+        "hbs3": "HybridBackup", "photo_station": "PhotoStation",
+        "malware_remover": "MalwareRemover", "security_center": "SecurityCenter",
+        "security_counselor": "SecurityCounselor",
+    }
+    return {
+        key: {
+            "package": package, "installed": None, "version": None,
+            "enabled": None, "qpkg_status": None,
+            "metadata_source": "QPKG metadata (/etc/config/qpkg.conf)",
+        }
+        for key, package in names.items()
+    }
 
 
 def legacy_ransomware_audit(
@@ -240,8 +287,25 @@ def legacy_ransomware_audit(
 ) -> Dict[str, Any]:
     """Compare fixed package metadata and operator confirmations with QNAP advisories."""
     system = sysinfo(client)
-    packages = legacy_ransomware_packages(config)
-    return assess_legacy_ransomware(system, packages, historical_exposure, current_exposure, qsnatch_controls)
+    collection_error = None
+    try:
+        packages = legacy_ransomware_packages(config)
+    except QtsError:
+        # Stop after the first failing SSH probe; do not turn a connection
+        # problem into ten per-field timeouts or a misleading empty package map.
+        packages = _unknown_legacy_packages()
+        collection_error = {
+            "source": "legacy_qpkg_metadata", "code": "ssh_collection_failed",
+            "message": "固定 QPKG SSH 探針失敗；後續探針已停止，套件 posture 維持 unknown。",
+        }
+    report = assess_legacy_ransomware(system, packages, historical_exposure, current_exposure, qsnatch_controls)
+    if collection_error:
+        report["collection_errors"] = [collection_error]
+        report["unknowns"].append({
+            "code": "legacy_qpkg_collection_failed",
+            "message": collection_error["message"],
+        })
+    return report
 
 
 def incident_report(client: QtsClient, config: Config, max_items: int = DEFAULT_MAX_ITEMS) -> Dict[str, Any]:

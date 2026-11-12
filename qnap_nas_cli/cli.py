@@ -53,7 +53,12 @@ def parser() -> argparse.ArgumentParser:
     report_health.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
     report_plex = report_subs.add_parser("plex2shell", help="執行 Plex 修補狀態稽核並寫入本機報告 bundle")
     report_plex.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
+    report_plex.add_argument("--exposure-during-vulnerable-version", choices=["yes", "no"], help="Operator-reported historical external exposure")
+    report_plex.add_argument("--current-exposure", choices=["yes", "no"], help="Operator-reported current external exposure")
     report_plex.add_argument("--check-known-process-iocs", action="store_true", help="選用固定的三個 QNAP 可疑程序名稱檢查")
+    for indicator_name, description in IOC_FIELDS.items():
+        option = "--ioc-{}".format(indicator_name.replace("_", "-"))
+        report_plex.add_argument(option, dest="ioc_" + indicator_name, choices=["yes", "no"], help="Operator-reported: {}".format(description))
     report_legacy = report_subs.add_parser("legacy-ransomware", help="排程式檢查 Qlocker／DeadBolt／QSnatch posture 並寫入本機報告 bundle")
     report_legacy.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
     report_legacy.add_argument("--historical-internet-exposure", choices=["yes", "no"], help="Operator-reported exposure while an affected package version was installed")
@@ -319,16 +324,27 @@ def main(argv: Optional[list] = None) -> int:
                 with QtsClient(config) as client:
                     _login(client)
                     value = health(client, indices)
+                receipt = write_health_report(args.directory, value)
                 delivery = maybe_notify_health(value, force=args.webhook)
                 if delivery is not None or args.webhook is not None or webhook_enabled():
-                    _add_webhook_result(value, args, delivery)
-                receipt = write_health_report(args.directory, value)
+                    _add_webhook_result(receipt, args, delivery)
             elif args.report_command == "plex2shell":
-                value = plex2shell_audit(config, check_known_process_iocs=args.check_known_process_iocs)
+                indicators = {
+                    name: getattr(args, "ioc_" + name)
+                    for name in IOC_FIELDS
+                    if getattr(args, "ioc_" + name) is not None
+                }
+                value = plex2shell_audit(
+                    config,
+                    args.exposure_during_vulnerable_version,
+                    args.current_exposure,
+                    indicators or None,
+                    args.check_known_process_iocs,
+                )
+                receipt = write_plex_security_report(args.directory, value)
                 delivery = maybe_notify_plex_security(value, force=args.webhook)
                 if delivery is not None or args.webhook is not None or webhook_enabled():
-                    _add_webhook_result(value, args, delivery)
-                receipt = write_plex_security_report(args.directory, value)
+                    _add_webhook_result(receipt, args, delivery)
             else:
                 control_pairs = args.qsnatch_control or []
                 control_names = [name for name, _ in control_pairs]
@@ -340,12 +356,18 @@ def main(argv: Optional[list] = None) -> int:
                         client, config, args.historical_internet_exposure, args.current_internet_exposure,
                         dict(control_pairs),
                     )
+                receipt = write_legacy_ransomware_report(args.directory, value)
                 delivery = maybe_notify_legacy_ransomware(value, force=args.webhook)
                 if delivery is not None or args.webhook is not None or webhook_enabled():
-                    _add_webhook_result(value, args, delivery)
-                receipt = write_legacy_ransomware_report(args.directory, value)
+                    _add_webhook_result(receipt, args, delivery)
+            collection_errors = value.get("collection_errors", [])
+            if collection_errors:
+                receipt["collection_errors"] = [
+                    {"source": item.get("source"), "code": item.get("code")}
+                    for item in collection_errors if isinstance(item, dict)
+                ]
             _print(receipt, args.json)
-            return 0
+            return 2 if collection_errors else 0
         if args.command == "incident":
             if args.incident_command == "rescue":
                 report = _read_json(args.report)
@@ -456,7 +478,7 @@ def main(argv: Optional[list] = None) -> int:
                         qsnatch_controls,
                     )
             _print(value, args.json)
-            return 0
+            return 2 if value.get("collection_errors") else 0
         operations = {
             "status": sysinfo,
             "health": health,

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix redacted security report bundles so schema-owned report/rule IDs and bounded four-component version/build fields survive redaction; add an end-to-end assessment → bundle → schema validation regression test.
+- Stop legacy QPKG collection at the first SSH/configuration failure, retain a fixed `collection_errors` code and explicit unknown posture, publish the report, then return exit 2 so schedulers cannot mistake an incomplete collection for success. Apply the same structured failure contract to Plex and make SSH identity-file use explicit with `IdentitiesOnly=yes`.
+- Sort webhook findings by severity before item/body truncation; a critical/high advisory finding can no longer be displaced by earlier low-severity QSnatch checklist entries. Photo Station exposure remains a high finding without being mislabeled as `suspected`, while still triggering an alert.
+- Separate health, Plex, and legacy indeterminate-webhook environment controls; persist scheduled report bundles before delivery and keep delivery status outside the report manifest.
+- Give Plex scheduled reports the same exposure/IOC parameters as direct audits, use an absolute `/bin/pidof` path, add Windows atomic-report CI coverage, and correct release/version/SSH privilege documentation.
+- Keep hash-suffixed Plex QPKG version parsing and all new advisory/probe live-compatibility claims unverified until exact TS-431K `getcfg`/`pidof` fixtures are collected; do not infer or fabricate device output. Do not cut `0.5.0` before that review.
 - Add a read-only Plex2Shell patch-posture and IOC-triage audit using fixed QPKG metadata probes, operator-reported indicators, and opt-in exact-name `pidof` checks; classify unknowns conservatively and never perform broad runtime scanning or modify the NAS.
 - Add read-only Qlocker / DeadBolt / QSnatch posture audit for the published HBS 3 and Photo Station package baselines, Malware Remover/Security Counselor metadata, and operator-confirmed NAS-201911-01 controls; unverified branch, scan freshness, exposure, and compromise state remain unknown.
 - Add `qts_legacy_ransomware_security` MCP tool, a versioned observation schema, and advisory-specific response/limitations documentation with official QNAP sources.

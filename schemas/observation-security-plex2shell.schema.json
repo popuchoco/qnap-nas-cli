@@ -16,7 +16,7 @@
       "required": ["package", "installed", "version", "qpkg_status", "enabled", "data_status", "version_source", "runtime_health"],
       "properties": {
         "package": {"type": "string", "enum": ["PlexMediaServer"]},
-        "installed": {"type": "boolean"},
+        "installed": {"type": ["boolean", "null"]},
         "version": {"type": ["string", "null"]},
         "qpkg_status": {"type": ["string", "null"]},
         "enabled": {"type": ["boolean", "null"]},
@@ -72,6 +72,7 @@
     },
     "findings": {"type": "array", "items": {"type": "object", "required": ["severity", "code", "message"], "properties": {"severity": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
     "unknowns": {"type": "array", "items": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "collection_errors": {"type": "array", "items": {"type": "object", "required": ["source", "code", "message"], "properties": {"source": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": false}},
     "recommended_actions": {"type": "array", "items": {"type": "string"}},
     "references": {"type": "array", "items": {"type": "string"}},
     "automation_supported": {"type": "boolean", "enum": [false]},

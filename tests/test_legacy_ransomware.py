@@ -107,8 +107,7 @@ class LegacyRansomwareAssessmentTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_qsnatch_control(value)
 
-    def test_photo_station_exposure_promotes_triage_without_claiming_compromise(self):
-        report = sample(firmware="5.0.1", photo_installed=True, photo="6.1.2")
+    def test_photo_station_exposure_is_high_finding_not_compromise_suspicion(self):
         report = assess_legacy_ransomware(
             {"firmware_product": "QTS", "firmware": "5.0.1"},
             {
@@ -117,8 +116,9 @@ class LegacyRansomwareAssessmentTest(unittest.TestCase):
             },
             current_exposure="yes",
         )
-        self.assertEqual(report["assessment"], "suspected")
-        self.assertIn("legacy_photo_station_currently_exposed", [item["code"] for item in report["findings"]])
+        finding = next(item for item in report["findings"] if item["code"] == "legacy_photo_station_currently_exposed")
+        self.assertEqual(report["assessment"], "indeterminate")
+        self.assertEqual(finding["severity"], "high")
 
     def test_exposure_input_is_strict(self):
         with self.assertRaises(ValueError):
@@ -138,12 +138,24 @@ class LegacyRansomwareWiringTest(unittest.TestCase):
             self.assertNotIn("/bin/sh", command)
             self.assertNotIn("-c", command)
 
-    def test_package_collector_retains_unknown_on_probe_failure(self):
+    def test_package_collector_stops_on_first_probe_failure(self):
         config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
-        with patch("qnap_nas_cli.ssh_backend.run_ssh", side_effect=QtsError("unavailable")):
-            result = legacy_ransomware_packages(config)
-        self.assertIsNone(result["hbs3"]["installed"])
-        self.assertIsNone(result["photo_station"]["version"])
+        with patch("qnap_nas_cli.ssh_backend.run_ssh", side_effect=QtsError("unavailable")) as run:
+            with self.assertRaises(QtsError):
+                legacy_ransomware_packages(config)
+        run.assert_called_once_with(config, "legacy_hbs3_version")
+
+    def test_legacy_audit_converts_ssh_failure_to_collection_error_and_unknown(self):
+        from qnap_nas_cli.commands import legacy_ransomware_audit
+
+        config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
+        with patch("qnap_nas_cli.commands.sysinfo", return_value={"model": "TS-X41", "firmware_product": "QTS", "firmware": "5.2.8", "build": "20251216"}), \
+             patch("qnap_nas_cli.ssh_backend.run_ssh", side_effect=QtsError("timeout")) as collect:
+            report = legacy_ransomware_audit(object(), config)
+        self.assertEqual(collect.call_count, 1)
+        self.assertEqual(report["assessment"], "indeterminate")
+        self.assertEqual(report["collection_errors"][0]["code"], "ssh_collection_failed")
+        self.assertIn("legacy_qpkg_collection_failed", [item["code"] for item in report["unknowns"]])
 
     def test_cli_parser_and_dispatch(self):
         args = parser().parse_args([

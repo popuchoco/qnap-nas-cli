@@ -108,9 +108,7 @@ def _clean_items(items: Any, *, unknown: bool = False):
     truncated = False
     if not isinstance(items, list):
         return cleaned, bool(items)
-    if len(items) > MAX_ITEMS:
-        truncated = True
-    for item in items[:MAX_ITEMS]:
+    for item in items:
         if not isinstance(item, dict):
             truncated = True
             continue
@@ -126,6 +124,15 @@ def _clean_items(items: Any, *, unknown: bool = False):
             severity_truncated = False
         cleaned.append(entry)
         truncated = truncated or code_truncated or severity_truncated
+    if len(cleaned) > MAX_ITEMS:
+        truncated = True
+    if not unknown:
+        severity_rank = {
+            "critical": 0, "high": 1, "error": 2, "warning": 3,
+            "medium": 4, "info": 5,
+        }
+        cleaned.sort(key=lambda item: severity_rank.get(item.get("severity", "").lower(), 6))
+    cleaned = cleaned[:MAX_ITEMS]
     return cleaned, truncated
 
 
@@ -441,7 +448,7 @@ def maybe_notify_plex_security(report: Mapping[str, Any], *, force: Optional[boo
         "vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected", "patched_but_exposed",
     ):
         trigger = "plex_security.alert"
-    elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_INDETERMINATE"):
+    elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_PLEX_INDETERMINATE"):
         trigger = "plex_security.indeterminate"
     else:
         trigger = None
@@ -449,13 +456,18 @@ def maybe_notify_plex_security(report: Mapping[str, Any], *, force: Optional[boo
 
 
 def maybe_notify_legacy_ransomware(report: Mapping[str, Any], *, force: Optional[bool] = None, env: Mapping[str, str] = os.environ):
-    """Notify for vulnerable or suspected legacy-advisory posture; indeterminate is opt-in."""
+    """Notify actionable legacy findings; routine indeterminate is separately opt-in."""
     if force is False:
         return None
     assessment = report.get("assessment") if isinstance(report, Mapping) else None
-    if assessment in ("vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected"):
+    findings = report.get("findings", []) if isinstance(report, Mapping) else []
+    high_finding = isinstance(findings, list) and any(
+        isinstance(item, dict) and item.get("severity") in ("critical", "high")
+        for item in findings
+    )
+    if assessment in ("vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected") or high_finding:
         trigger = "legacy_ransomware.alert"
-    elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_INDETERMINATE"):
+    elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_LEGACY_RANSOMWARE_INDETERMINATE"):
         trigger = "legacy_ransomware.indeterminate"
     else:
         trigger = None

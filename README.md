@@ -7,11 +7,11 @@
 >
 > **支援政策：**僅支援最新的 `main` 與最新 release。
 >
-> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。`0.4.0` 可用 pipx 或 pip 安裝；安裝方式見[安裝指南](docs/INSTALL.md)。維護與發布流程見[貢獻指南](CONTRIBUTING.md)及[發布說明](docs/PUBLISHING.md)。
+> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。最新已發布版本為 `0.4.0`，可用 pipx 或 pip 安裝。`main` 另含尚未發布的 Plex2Shell／legacy ransomware audit 與排程報告；它們尚未完成 TS-431K 真機 fixture review，不屬於 `0.4.0` 支援契約，也未打 `0.5.0`。安裝方式見[安裝指南](docs/INSTALL.md)。
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 
-目前版本為 `0.4.0`，主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
+最新已發布版本為 `0.4.0`；主要相容目標為 QTS 5.x 與 TS-431K。QTS CGI 欄位會因機型、韌體及安裝套件而異；請使用 `qts dump` 提供已遮蔽的相容性樣本。
 
 ## 目前狀態
 
@@ -19,7 +19,7 @@
 - CI 執行離線測試、Python bytecode compilation 與 CLI smoke test。TS-431K 的 File Station reviewed fixture，以及 QTS web `status`／`health` 與 `repair plan`／`apply` 回傳 `refused`，已於 2026-11-06 完成驗證；第二管理帳號仍未驗證，因此 mutation gate 仍關閉，詳見 [`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md)。
 - TS-431K 也已於 2026-11-06 完成排程健康報告、HTTPS Webhook 成功／失敗隔離，以及 Evidence Capsule v2 的實機驗證：manifest hash/size 均吻合、重複目錄 fail closed、Webhook 只含 allowlisted codes，且本次 10,000-item 掃描因 coverage partial/truncated、沒有 IOC examples 而未匯出樣本。
 - GitHub Actions 在 Python 3.8、3.12、3.13 驗證：[CI workflow](https://github.com/popuchoco/qnap-nas-cli/actions/workflows/ci.yml)。
-- CI 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
+- Linux Python matrix 固定使用 Ubuntu 22.04，因為 GitHub 的 Ubuntu 26 runner 不再提供 Python 3.8；另有 Windows 2022 atomic report/evidence tests。這是為了保留較舊 NAS／管理環境的相容性，不是測試降級。
 - 已用 TS-431K、QTS 5.2.8 build 20251216 完成 2FA 與唯讀 SSH live smoke test，並納入人工審查的 system／volume／SMART、`mdstat` 與實體磁碟拓樸 fixture。QTS 在此機型回報的內部 model 是 `TS-X41`。
 - `0.4.0` 包含 opt-in HTTPS webhook、`qts report health`（外部 cron／systemd timer，無 daemon）與 atomic Evidence Capsule，並已完成 TS-431K 實機驗證與 Windows atomic 相容修正。mutation gate 仍關閉；第二管理帳號與第二機型仍未驗證。
 
@@ -32,8 +32,8 @@
 - `status`：型號、韌體、CPU、記憶體、溫度與 uptime。
 - `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談，回報使用中的通用溫度門檻。
 - `report health`：將同一份唯讀 health observation 遮蔽後寫入新／空的本機目錄，包含時間戳記 JSON、只列 codes 的 Markdown 摘要與 SHA-256 manifest；可由外部 cron 或 systemd timer 呼叫。
-- `report plex2shell`：以相同的 atomic/redacted bundle 方式排程輸出 Plex 修補狀態；已知程序名稱探針需明確 opt-in，Webhook 只傳送 allowlisted finding/status codes。
-- `report legacy-ransomware`：可排程輸出 Qlocker／DeadBolt／QSnatch posture capsule；漏洞或疑似狀態可走 opt-in webhook，indeterminate 僅在明確啟用時通知。
+- `report plex2shell`（main 未發布）：以相同的 atomic/redacted bundle 方式排程輸出 Plex 修補狀態，可帶入 operator exposure／IOC 欄位；已知程序名稱探針需明確 opt-in。
+- `report legacy-ransomware`（main 未發布）：可排程輸出 Qlocker／DeadBolt／QSnatch posture capsule；SSH collection failure 會明確記錄為 unknown／`collection_errors`，並停止後續探針。
 - `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要；可重複指定 `--volume-index N`，但尚無 endpoint 可證明全部 index 已查齊。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：從已驗證的 QPKG 安裝路徑執行固定的 `tailscale status --json`。
@@ -41,8 +41,8 @@
 - `disk-topology`：用 `qcli_storage -d` 讀取實體 bay、data/spare 角色、容量與型號。
 - `smart-details DISK`：以已驗證的 bay 編號讀取 QNAP SMART attributes；韌體空回應會明確標為 unavailable。
 - `services`：唯讀觀察 Container Station／Tailscale QPKG metadata，不把 `Status=complete` 誤稱為 daemon 正常運行。
-- `security audit plex2shell`：比較 Plex QPKG 版本與 QNAP 修補基線；可選擇用固定 `pidof` 查三個已知程序名，其他指標由管理者回報；不是完整入侵掃描，也不會修改 NAS。
-- `security audit legacy-ransomware`：以固定 QPKG metadata 比對已公布的 HBS 3／Photo Station 修補基線，並提供 QSnatch 安全控制的人工確認欄位；韌體基線未知、定義新鮮度、掃描完成狀態與感染狀態一律不猜測。細節見[舊版勒索軟體與 QSnatch 稽核](docs/LEGACY-RANSOMWARE.md)。
+- `security audit plex2shell`（main 未發布）：比較 Plex QPKG 版本與 QNAP 修補基線；可選擇用固定程序名稱查三個已知 IOC，其他指標由管理者回報；不是完整入侵掃描，也不會修改 NAS。
+- `security audit legacy-ransomware`（main 未發布）：以固定 QPKG metadata 比對已公布的 HBS 3／Photo Station 修補基線，並提供 QSnatch 安全控制的人工確認欄位；韌體基線未知、定義新鮮度、掃描完成狀態與感染狀態一律不猜測。細節見[舊版勒索軟體與 QSnatch 稽核](docs/LEGACY-RANSOMWARE.md)。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
 - `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
@@ -51,7 +51,7 @@
 - `incident evidence`：以 private staging 和 atomic directory publish 保存遞迴遮蔽後的 report、codes-only `summary.md` 與 format v2 SHA-256 manifest；可重複指定最多 100 個 `--attach-candidate`，但每個路徑都必須精確出現在 report 的 indicator examples，並受 `--max-bytes` 合計上限限制。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
 - `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
-- `mcp`：提供十二個唯讀 stdio MCP tools。
+- `mcp`：main 提供十二個唯讀 stdio MCP tools；其中 Plex／legacy audit tools 尚未納入最新發布的 `0.4.0`。
 - 全部資料命令支援 `--json`。
 
 Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案；rescue／`--attach-candidate` 匯出的樣本一律存成安全檔名 `samples/sample-NNN.bin`（非原始 NAS 路徑），原始 File Station 路徑保留在 manifest／receipt 的 `source` 欄位。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
@@ -206,7 +206,7 @@ Volume 查詢目前固定使用 `func=extra_get&extra_vol_index=1`，回應仍�
 
 ## Webhook 通知
 
-Webhook 只在設定 `QTS_WEBHOOK_URL` 時啟用；URL 是 operator-local secret，僅接受 HTTPS，並使用預設 TLS 憑證驗證。`health` 的 `unhealthy` 及 `incident scan` 的 `suspected` 會通知；`indeterminate` 預設略過，可用 `QTS_WEBHOOK_ON_INDETERMINATE=true` 選擇啟用。可用 `--webhook`／`--no-webhook` 覆寫本次 CLI 呼叫。通知只會送出型號、韌體、build、有限 finding／unknown 摘要；findings 只含 code 與選用的 severity，unknowns 只含 code，不會送出自由文字訊息。Payload 不含憑證、hostname、序號、IP、share 名稱或 evidence 路徑。Delivery 使用短 timeout、不跟隨 redirect、不重試；錯誤不改變成功 observation 的 exit code。環境變數與秘密管理方式見[憑證注入指南](docs/SECRETS.md)。Mutation gate 仍關閉。
+Webhook 只在設定 `QTS_WEBHOOK_URL` 時啟用；URL 是 operator-local secret，僅接受 HTTPS，並使用預設 TLS 憑證驗證。`health` 的 `unhealthy` 及 `incident scan` 的 `suspected` 會通知；Health `indeterminate` 可用 `QTS_WEBHOOK_ON_INDETERMINATE` 選擇啟用。main 未發布的 Plex／legacy reports 使用各自的 `QTS_WEBHOOK_ON_PLEX_INDETERMINATE` 與 `QTS_WEBHOOK_ON_LEGACY_RANSOMWARE_INDETERMINATE`，避免一個常年未知的舊韌體 posture 產生大量通知。通知只會送出型號、韌體、build、有限 finding／unknown 摘要；findings 只含 code 與選用的 severity，unknowns 只含 code，不會送出自由文字訊息。Payload 不含憑證、hostname、序號、IP、share 名稱或 evidence 路徑。Scheduled reports 先原子發布 bundle，再嘗試 webhook；送達結果只在 CLI receipt，不回寫觀察 bundle。Delivery 使用短 timeout、不跟隨 redirect、不重試；錯誤不改變成功 observation 的 exit code。環境變數與秘密管理方式見[憑證注入指南](docs/SECRETS.md)。Mutation gate 仍關閉。
 
 TS-431K 的 `/sbin/get_hd_smartinfo -d 1..4` 實測皆為空，而且系統未安裝 `smartctl`；因此 `smart-details` 回傳 `data_status: unavailable_on_firmware`，不會假造 attributes。`md9`／`md13` 的 `[128/3]` QNAP wide bitmap 也不套用一般 Linux md 的底線判讀，`degraded` 會是 `null`。
 
@@ -278,7 +278,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q qnap_nas_cli
 ```
 
-CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 wheel 建置。固定 runner 的理由是 Ubuntu 26 已無 Python 3.8 toolcache。Live smoke test 不會在公開 CI 使用真實 NAS credential。
+CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 wheel 建置，並在 Windows 2022 上跑 atomic report/evidence writer 測試。固定 Linux runner 的理由是 Ubuntu 26 已無 Python 3.8 toolcache。Live smoke test 不會在公開 CI 使用真實 NAS credential。
 
 ## Roadmap
 

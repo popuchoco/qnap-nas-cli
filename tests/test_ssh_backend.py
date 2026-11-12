@@ -66,6 +66,7 @@ class SshBackendTest(unittest.TestCase):
             run_ssh(config, "raid")
         args = run.call_args.args[0]
         self.assertEqual(args[args.index("-i") + 1], str(identity))
+        self.assertIn("IdentitiesOnly=yes", args)
         self.assertLess(args.index("-i"), args.index("--"))
 
     def test_parse_mdstat_degraded_and_recovery(self):

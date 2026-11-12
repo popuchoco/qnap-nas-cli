@@ -11,7 +11,9 @@
 | `QTS_WEBHOOK_URL` | 選用 webhook endpoint；整個 URL 視為秘密，僅支援 HTTPS，且不寫入設定檔。 |
 | `QTS_WEBHOOK_SECRET` | 選用 webhook 簽章秘密；以 HMAC-SHA256 放在 HTTP header，不放入 payload。 |
 | `QTS_WEBHOOK_TIMEOUT_SEC` | 選用 webhook timeout 秒數；預設 5，限制在 1 到 10 秒。 |
-| `QTS_WEBHOOK_ON_INDETERMINATE` | 設為 `1`、`true` 或 `yes` 時，允許 health indeterminate 結果觸發通知。 |
+| `QTS_WEBHOOK_ON_INDETERMINATE` | 設為 `1`、`true` 或 `yes` 時，允許 health `indeterminate` 結果觸發通知。 |
+| `QTS_WEBHOOK_ON_PLEX_INDETERMINATE` | main 未發布 Plex posture report 的 `indeterminate` 通知選項；與 health 和 legacy policy 分開。 |
+| `QTS_WEBHOOK_ON_LEGACY_RANSOMWARE_INDETERMINATE` | main 未發布 legacy ransomware report 的 `indeterminate` 通知選項；避免固定未知狀態共用 health policy。Critical/high legacy findings 仍會走 alert trigger。 |
 | `QTS_CONFIG` | 設定 JSON 檔案的路徑覆寫，不是秘密或憑證。 |
 | `XDG_CONFIG_HOME` | 標準設定目錄；未設定時使用 `~/.config`。 |
 

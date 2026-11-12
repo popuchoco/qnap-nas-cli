@@ -202,6 +202,7 @@ class HealthReportWriterTest(unittest.TestCase):
     def test_legacy_ransomware_report_is_atomic_redacted_and_codes_only(self):
         observation = {
             "report_type": "qnap_legacy_ransomware_posture",
+            "rule_id": "qnap-legacy-ransomware-2026-11",
             "assessment": "indeterminate",
             "system": {"model": "TS-X41", "firmware": "5.2.8", "build": "20251216", "hostname": "PRIVATE_HOST"},
             "findings": [{"code": "qsnatch_control_not_confirmed_accounts_reviewed", "severity": "warning", "message": "PRIVATE_FINDING"}],
@@ -225,6 +226,9 @@ class HealthReportWriterTest(unittest.TestCase):
         self.assertNotIn("PRIVATE_UNKNOWN", summary)
         self.assertNotIn("PRIVATE_HOST", rendered)
         self.assertNotIn("PRIVATE_PASSWORD", rendered)
+        payload = json.loads(rendered)
+        self.assertEqual(payload["report_type"], "qnap_legacy_ransomware_posture")
+        self.assertEqual(payload["rule_id"], "qnap-legacy-ransomware-2026-11")
 
 
 class HealthReportCliTest(unittest.TestCase):
@@ -284,13 +288,46 @@ class HealthReportCliTest(unittest.TestCase):
                 self.assertEqual(main(["report", "health", "--directory", str(Path(temporary) / "failed")]), 2)
             self.assertIn("error:", error.getvalue())
 
+    def test_report_bundle_is_committed_before_webhook_and_does_not_embed_delivery_result(self):
+        config = Config("https://nas.invalid", "ops")
+        observation = synthetic_observation("unhealthy")
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "report"
+            output = io.StringIO()
+            errors = io.StringIO()
+
+            def notify(value, **kwargs):
+                self.assertTrue((target / "manifest.sha256").is_file())
+                self.assertNotIn("webhook", value)
+                return {"status": "error", "http_status": None, "error": "timeout"}
+
+            with patch("qnap_nas_cli.cli._config", return_value=config), \
+                 patch("qnap_nas_cli.cli.QtsClient", return_value=self.Client()), \
+                 patch("qnap_nas_cli.cli._login"), \
+                 patch("qnap_nas_cli.cli.health", return_value=observation), \
+                 patch("qnap_nas_cli.cli.maybe_notify_health", side_effect=notify), \
+                 patch("qnap_nas_cli.cli.webhook_enabled", return_value=True), \
+                 patch.object(sys, "stdout", output), patch.object(sys, "stderr", errors):
+                self.assertEqual(main(["report", "health", "--directory", str(target), "--json"]), 0)
+
+            bundle_path = next(target.glob("health-*.json"))
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+            receipt = json.loads(output.getvalue())
+            self.assertNotIn("webhook", bundle)
+            self.assertEqual(receipt["webhook"]["status"], "error")
+            self.assertIn("webhook warning", errors.getvalue())
+
     def test_plex_report_cli_runs_read_only_audit_and_publishes_local_report(self):
         args = parser().parse_args([
-            "report", "plex2shell", "--directory", "out", "--check-known-process-iocs", "--no-webhook",
+            "report", "plex2shell", "--directory", "out",
+            "--exposure-during-vulnerable-version", "no", "--current-exposure", "yes",
+            "--ioc-malware-remover-detection", "yes", "--check-known-process-iocs", "--no-webhook",
         ])
         self.assertEqual(args.command, "report")
         self.assertEqual(args.report_command, "plex2shell")
         self.assertTrue(args.check_known_process_iocs)
+        self.assertEqual(args.exposure_during_vulnerable_version, "no")
+        self.assertEqual(args.current_exposure, "yes")
         self.assertFalse(args.webhook)
 
         config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
@@ -303,10 +340,14 @@ class HealthReportCliTest(unittest.TestCase):
              patch("qnap_nas_cli.cli.webhook_enabled", return_value=False), \
              patch("qnap_nas_cli.cli.write_plex_security_report", return_value=receipt) as write_report, \
              patch.object(sys, "stdout", output):
-            code = main(["report", "plex2shell", "--directory", "out", "--check-known-process-iocs", "--json"])
+            code = main([
+                "report", "plex2shell", "--directory", "out", "--check-known-process-iocs",
+                "--exposure-during-vulnerable-version", "no", "--current-exposure", "yes",
+                "--ioc-malware-remover-detection", "yes", "--json",
+            ])
 
         self.assertEqual(code, 0)
-        audit.assert_called_once_with(config, check_known_process_iocs=True)
+        audit.assert_called_once_with(config, "no", "yes", {"malware_remover_detection": "yes"}, True)
         notify.assert_called_once()
         self.assertEqual(notify.call_args.kwargs["force"], None)
         write_report.assert_called_once_with(Path("out"), report)
@@ -336,6 +377,28 @@ class HealthReportCliTest(unittest.TestCase):
         notify.assert_called_once_with(report, force=None)
         write_report.assert_called_once_with(Path("out"), report)
         self.assertEqual(json.loads(output.getvalue()), receipt)
+
+    def test_legacy_report_writes_collection_failure_receipt_and_returns_nonzero(self):
+        config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
+        report = {
+            "assessment": "indeterminate", "findings": [], "unknowns": [],
+            "collection_errors": [{"source": "legacy_qpkg_metadata", "code": "ssh_collection_failed", "message": "fixed"}],
+        }
+        receipt = {"directory": "out", "status": "indeterminate", "files": ["legacy-ransomware-report"]}
+        output = io.StringIO()
+        with patch("qnap_nas_cli.cli._config", return_value=config), \
+             patch("qnap_nas_cli.cli.QtsClient", return_value=self.Client()), \
+             patch("qnap_nas_cli.cli._login"), \
+             patch("qnap_nas_cli.cli.legacy_ransomware_audit", return_value=report), \
+             patch("qnap_nas_cli.cli.maybe_notify_legacy_ransomware", return_value=None), \
+             patch("qnap_nas_cli.cli.webhook_enabled", return_value=False), \
+             patch("qnap_nas_cli.cli.write_legacy_ransomware_report", return_value=receipt), \
+             patch.object(sys, "stdout", output):
+            result = main(["report", "legacy-ransomware", "--directory", "out", "--json"])
+        self.assertEqual(result, 2)
+        self.assertEqual(json.loads(output.getvalue())["collection_errors"], [
+            {"source": "legacy_qpkg_metadata", "code": "ssh_collection_failed"},
+        ])
 
 
 if __name__ == "__main__":

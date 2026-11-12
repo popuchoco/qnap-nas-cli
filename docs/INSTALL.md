@@ -1,6 +1,6 @@
 # 安裝
 
-套件名稱是 `qnap-nas-cli`，命令列入口是 `qts`，需要 Python 3.8 以上。`0.2.0` 已發布到 PyPI；執行時只使用 Python 標準函式庫。
+套件名稱是 `qnap-nas-cli`，命令列入口是 `qts`，需要 Python 3.8 以上。最新已發布版本為 `0.4.0`；執行時只使用 Python 標準函式庫。`main` 上標示為未發布的 security audit/report 子命令不屬於 `0.4.0` 套件範圍。
 
 ## 從 PyPI 安裝（建議）
 
@@ -58,7 +58,7 @@ python -m pip download --only-binary=:all: --no-deps qnap-nas-cli -d dist/
 python -m pip wheel . -w dist/
 ```
 
-若已安裝 `build` 工具，也可執行 `python -m build --wheel --outdir dist/`。將產生的 `qnap_nas_cli-0.2.0-py3-none-any.whl` 複製到離線主機。在離線主機上，`DIR` 請換成 wheel 所在目錄：
+若已安裝 `build` 工具，也可執行 `python -m build --wheel --outdir dist/`。將產生的 `qnap_nas_cli-0.4.0-py3-none-any.whl` 複製到離線主機。在離線主機上，`DIR` 請換成 wheel 所在目錄：
 
 ```bash
 python3 -m venv .venv
@@ -67,7 +67,7 @@ python3 -m venv .venv
 .venv/bin/qts --version
 ```
 
-若直接指定 wheel 路徑，也可執行 `.venv/bin/python -m pip install /path/to/qnap_nas_cli-0.2.0-py3-none-any.whl`。此套件沒有第三方 runtime dependencies。
+若直接指定 wheel 路徑，也可執行 `.venv/bin/python -m pip install /path/to/qnap_nas_cli-0.4.0-py3-none-any.whl`。此套件沒有第三方 runtime dependencies。
 
 ## 憑證與設定
 

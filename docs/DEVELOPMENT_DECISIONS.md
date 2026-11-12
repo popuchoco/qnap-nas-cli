@@ -42,7 +42,7 @@ The reviewed TS-431K/QTS 5.2.8 fixture showed that `disk_manage.cgi extra_get` r
 
 ## ADR-011 — SSH probes are shell-free and allowlisted
 
-Deep read-only evidence uses direct OpenSSH argv for `cat /proc/mdstat`, QNAP SMART attributes, fixed QPKG reads, Container Station status, and Tailscale JSON status. No probe accepts arbitrary commands or package names, and `/bin/sh -c` is forbidden. Disk slots are numeric and bounded. Password authentication is not automated; an explicit identity path may be configured.
+Deep read-only evidence uses direct OpenSSH argv for `cat /proc/mdstat`, QNAP SMART attributes, fixed QPKG reads, Container Station status, and Tailscale JSON status. The local client uses `shell=False`, no probe accepts arbitrary commands or package names, and `/bin/sh -c` is forbidden in client command construction. This allowlist limits this client only; it does not constrain the SSH account or copied private key. Do not call the key “read-only”; protect it according to the configured NAS account's privileges. Disk slots are numeric and bounded. Password authentication is not automated; when an explicit identity path is configured, the client limits offered identities with `IdentitiesOnly=yes`.
 
 ## ADR-012 — Mutation maturity is gated by recovery
 

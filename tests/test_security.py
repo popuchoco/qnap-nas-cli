@@ -126,9 +126,9 @@ class PlexSecurityTest(unittest.TestCase):
             "plex_version": ["/sbin/getcfg", "PlexMediaServer", "Version", "-f", "/etc/config/qpkg.conf"],
             "plex_status": ["/sbin/getcfg", "PlexMediaServer", "Status", "-f", "/etc/config/qpkg.conf"],
             "plex_enabled": ["/sbin/getcfg", "PlexMediaServer", "Enable", "-f", "/etc/config/qpkg.conf"],
-            "plex_ioc_myawesomeproxy": ["pidof", "myawesomeproxy"],
-            "plex_ioc_mylovelyminer": ["pidof", "mylovelyminer"],
-            "plex_ioc_x12345": ["pidof", "x12345"],
+            "plex_ioc_myawesomeproxy": ["/bin/pidof", "myawesomeproxy"],
+            "plex_ioc_mylovelyminer": ["/bin/pidof", "mylovelyminer"],
+            "plex_ioc_x12345": ["/bin/pidof", "x12345"],
         }
         for name, argv in expected.items():
             with self.subTest(name=name):
@@ -153,7 +153,7 @@ class PlexSecurityTest(unittest.TestCase):
         run.return_value = type("Completed", (), {"returncode": 1, "stdout": "", "stderr": ""})()
         run_ssh(Config("https://nas.example", "ops", ssh_host="nas", ssh_user="ops"), "plex_ioc_mylovelyminer")
         args = run.call_args.args[0]
-        self.assertEqual(args[args.index("--") + 2:], ["pidof", "mylovelyminer"])
+        self.assertEqual(args[args.index("--") + 2:], ["/bin/pidof", "mylovelyminer"])
         self.assertNotIn("-c", args)
         self.assertNotIn("/bin/sh", args)
 
@@ -176,6 +176,21 @@ class PlexSecurityTest(unittest.TestCase):
             probes.assert_not_called()
             plex2shell_audit(config, check_known_process_iocs=True)
             probes.assert_called_once_with(config)
+
+    def test_plex_ssh_collection_failure_is_explicit_unknown_and_stops_followups(self):
+        from qnap_nas_cli.commands import plex2shell_audit
+
+        config = Config("https://nas.example", "ops", ssh_host="nas", ssh_user="ops")
+        with patch("qnap_nas_cli.ssh_backend.run_ssh", side_effect=QtsError("connection timeout")) as collect, \
+             patch("qnap_nas_cli.commands.plex_known_process_iocs") as runtime:
+            report = plex2shell_audit(config, check_known_process_iocs=True)
+        self.assertEqual(collect.call_count, 1)
+        runtime.assert_not_called()
+        self.assertEqual(report["assessment"], "indeterminate")
+        self.assertIsNone(report["package"]["installed"])
+        self.assertEqual(report["collection_errors"][0]["code"], "ssh_collection_failed")
+        self.assertEqual(report["runtime_ioc_probes"]["status"], "partial")
+        self.assertTrue(all(item["status"] == "not_attempted" for item in report["runtime_ioc_probes"]["results"]))
 
     def test_cli_parser_accepts_operator_reported_exposure_and_json(self):
         args = parser().parse_args([
