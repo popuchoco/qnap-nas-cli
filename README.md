@@ -33,6 +33,7 @@
 - `health`：唯讀彙整磁碟、Volume、已知異常 finding 與資料不足 unknown；`healthy`、`unhealthy`、`indeterminate` 不混為一談，回報使用中的通用溫度門檻。
 - `report health`：將同一份唯讀 health observation 遮蔽後寫入新／空的本機目錄，包含時間戳記 JSON、只列 codes 的 Markdown 摘要與 SHA-256 manifest；可由外部 cron 或 systemd timer 呼叫。
 - `report plex2shell`：以相同的 atomic/redacted bundle 方式排程輸出 Plex 修補狀態；已知程序名稱探針需明確 opt-in，Webhook 只傳送 allowlisted finding/status codes。
+- `report legacy-ransomware`：可排程輸出 Qlocker／DeadBolt／QSnatch posture capsule；漏洞或疑似狀態可走 opt-in webhook，indeterminate 僅在明確啟用時通知。
 - `storage`／`disks`／`volumes`：合併 Volume、sysinfo bay 與 `qsmart.cgi` SMART 摘要；可重複指定 `--volume-index N`，但尚無 endpoint 可證明全部 index 已查齊。
 - `network`：介面、IP、速度與 DNS。
 - `tailscale`：從已驗證的 QPKG 安裝路徑執行固定的 `tailscale status --json`。
@@ -110,6 +111,7 @@ qts security audit plex2shell --check-known-process-iocs --json
 qts security audit legacy-ransomware --json
 qts security audit legacy-ransomware --qsnatch-control qts_latest=yes \
   --qsnatch-control malware_remover_updated_and_scan_run=yes --json
+qts report legacy-ransomware --directory ./legacy-security-once --json
 
 # 勒索事件：有限掃描，建立 atomic 本機 evidence capsule
 qts incident scan --max-items 10000 --evidence-dir case-2026-01 --json

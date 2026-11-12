@@ -176,6 +176,7 @@ def build_payload(
     if trigger not in (
         "health.unhealthy", "health.indeterminate", "incident.suspected",
         "plex_security.alert", "plex_security.indeterminate",
+        "legacy_ransomware.alert", "legacy_ransomware.indeterminate",
     ):
         raise ValueError("unsupported webhook trigger")
     if not isinstance(observation, Mapping):
@@ -183,26 +184,29 @@ def build_payload(
 
     is_incident = trigger == "incident.suspected"
     is_plex_security = trigger.startswith("plex_security.")
+    is_legacy_security = trigger.startswith("legacy_ransomware.")
     if is_incident:
         findings, unknowns, truncated = _incident_items(observation)
         assessment = observation.get("assessment")
         if assessment is None and isinstance(observation.get("ransomware_scan"), dict):
             assessment = observation["ransomware_scan"].get("assessment")
         summary = "Incident scan assessment: suspected ({} indicator(s)).".format(len(findings))
-    elif is_plex_security:
+    elif is_plex_security or is_legacy_security:
         findings, findings_truncated = _clean_items(observation.get("findings", []))
         unknowns, unknowns_truncated = _clean_items(observation.get("unknowns", []), unknown=True)
         truncated = findings_truncated or unknowns_truncated
         assessment = observation.get("assessment")
-        allowed_assessments = {
+        allowed_assessments = ({
             "not_installed", "vulnerable", "vulnerable_exposed", "potentially_compromised",
             "suspected", "patched", "patched_but_exposed", "indeterminate",
-        }
+        } if is_plex_security else {
+            "vulnerable", "vulnerable_exposed", "potentially_compromised",
+            "suspected", "patched", "indeterminate",
+        })
         if assessment not in allowed_assessments:
             assessment = "indeterminate"
-        summary = "Plex security assessment: {} ({} finding(s), {} unknown(s)).".format(
-            assessment, len(findings), len(unknowns)
-        )
+        label = "Plex security" if is_plex_security else "Legacy ransomware/QSnatch security"
+        summary = "{} assessment: {} ({} finding(s), {} unknown(s)).".format(label, assessment, len(findings), len(unknowns))
     else:
         findings, findings_truncated = _clean_items(observation.get("findings", []))
         unknowns, unknowns_truncated = _clean_items(observation.get("unknowns", []), unknown=True)
@@ -233,7 +237,7 @@ def build_payload(
     }
     if is_incident and assessment == "suspected":
         payload["assessment"] = "suspected"
-    elif is_plex_security:
+    elif is_plex_security or is_legacy_security:
         payload["assessment"] = assessment
     if truncated or device_truncated:
         payload["truncated"] = True
@@ -439,6 +443,20 @@ def maybe_notify_plex_security(report: Mapping[str, Any], *, force: Optional[boo
         trigger = "plex_security.alert"
     elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_INDETERMINATE"):
         trigger = "plex_security.indeterminate"
+    else:
+        trigger = None
+    return _deliver_observation(trigger, report if isinstance(report, Mapping) else {}, force, env)
+
+
+def maybe_notify_legacy_ransomware(report: Mapping[str, Any], *, force: Optional[bool] = None, env: Mapping[str, str] = os.environ):
+    """Notify for vulnerable or suspected legacy-advisory posture; indeterminate is opt-in."""
+    if force is False:
+        return None
+    assessment = report.get("assessment") if isinstance(report, Mapping) else None
+    if assessment in ("vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected"):
+        trigger = "legacy_ransomware.alert"
+    elif assessment == "indeterminate" and _env_truthy(env, "QTS_WEBHOOK_ON_INDETERMINATE"):
+        trigger = "legacy_ransomware.indeterminate"
     else:
         trigger = None
     return _deliver_observation(trigger, report if isinstance(report, Mapping) else {}, force, env)

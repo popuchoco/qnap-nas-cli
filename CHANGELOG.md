@@ -5,6 +5,7 @@
 - Add a read-only Plex2Shell patch-posture and IOC-triage audit using fixed QPKG metadata probes, operator-reported indicators, and opt-in exact-name `pidof` checks; classify unknowns conservatively and never perform broad runtime scanning or modify the NAS.
 - Add read-only Qlocker / DeadBolt / QSnatch posture audit for the published HBS 3 and Photo Station package baselines, Malware Remover/Security Counselor metadata, and operator-confirmed NAS-201911-01 controls; unverified branch, scan freshness, exposure, and compromise state remain unknown.
 - Add `qts_legacy_ransomware_security` MCP tool, a versioned observation schema, and advisory-specific response/limitations documentation with official QNAP sources.
+- Add atomic, redacted `qts report legacy-ransomware` bundles with codes-only summaries and alert-only webhook notifications for vulnerable/suspected posture; indeterminate delivery remains explicitly opt-in.
 
 ## 0.4.0 — 2026-11-06
 

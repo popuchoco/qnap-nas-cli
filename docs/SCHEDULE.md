@@ -4,6 +4,8 @@
 
 `qts report plex2shell --directory DIR` 使用相同的 atomic/redacted bundle writer，輸出 Plex patch posture 與 finding/unknown code 摘要。可用 `--check-known-process-iocs` 額外執行三個固定名稱的 `pidof` probe；預設不執行。這仍不是完整事件掃描，也不會清除或修改 NAS。兩種 report 目標目錄都需每次使用新的路徑。
 
+`qts report legacy-ransomware --directory DIR` 會取得 QTS system info 和固定 allowlist 的 QPKG metadata，再發布相同格式的本機 capsule。它需要 QTS web credentials 與 SSH read-only 帳號/key；webhook 對 vulnerable/suspected 狀態發警示，`indeterminate` 只有設定 `QTS_WEBHOOK_ON_INDETERMINATE` 才通知。
+
 目標目錄若不存在會建立；已存在時必須是實際的空目錄。非空目錄、檔案與 symlink 會被拒絕。三個檔案先在同一個父目錄的私有暫存目錄完成，再將整個目錄原子發布；寫入失敗不會留下部分報告檔。`--directory` 應使用每次執行的新路徑，避免排程重用非空目錄。
 
 ```bash
@@ -11,6 +13,7 @@ qts report health --directory ./health-report-once --json
 qts report plex2shell --directory ./plex-security-once --json
 # 選擇性固定名稱檢查（需要已設定 SSH）：
 qts report plex2shell --directory ./plex-security-ioc-once --check-known-process-iocs --json
+qts report legacy-ransomware --directory ./legacy-security-once --json
 ```
 
 健康狀態沿用 `qts health` 的 exit code：觀察成功時，即使狀態為 `unhealthy` 或 `indeterminate`，仍回傳 `0`；連線或報告寫入錯誤回傳 `2`。輸出檔案的時間戳記以 UTC 秒為單位。
@@ -29,7 +32,13 @@ qts report plex2shell --directory ./plex-security-ioc-once --check-known-process
 15 6 * * * /bin/bash -c 'set -a; . /etc/qnap-nas-cli/health.env; set +a; d=$(/usr/bin/date -u +\%Y\%m\%dT\%H\%M\%SZ); exec /usr/local/bin/qts report plex2shell --directory "/var/lib/qnap-nas-cli/plex-reports/$d"' >> /var/log/qnap-nas-cli/plex-report.log 2>&1
 ```
 
-Health report 需要 `QTS_PASSWORD`，並由 `QTS_CONFIG` 或預設設定路徑提供 NAS 連線設定。Plex report 使用 SSH，需設定 SSH 主機／帳號與 passwordless key；若排程同一個環境檔則可同時保留 `QTS_PASSWORD`。process 探針是可選固定名稱 allowlist，不會列出程序表。若使用 webhook，可在此環境注入 `QTS_WEBHOOK_URL` 和選用的 `QTS_WEBHOOK_SECRET`。檔案權限應限制為排程帳號可讀；Cron wrapper 請引用秘密檔，不要複製秘密內容。
+若要排程 Qlocker／DeadBolt／QSnatch posture，請確保同一個環境檔含 QTS 密碼和 SSH 設定：
+
+```cron
+30 6 * * * /bin/bash -c 'set -a; . /etc/qnap-nas-cli/health.env; set +a; d=$(/usr/bin/date -u +\%Y\%m\%dT\%H\%M\%SZ); exec /usr/local/bin/qts report legacy-ransomware --directory "/var/lib/qnap-nas-cli/legacy-reports/$d"' >> /var/log/qnap-nas-cli/legacy-report.log 2>&1
+```
+
+Health report 需要 `QTS_PASSWORD`，並由 `QTS_CONFIG` 或預設設定路徑提供 NAS 連線設定。Plex report 使用 SSH，需設定 SSH 主機／帳號與 passwordless key；Legacy ransomware report 同時使用 QTS web 與 SSH，也需兩組連線方式。process 探針是可選固定名稱 allowlist，不會列出程序表。若使用 webhook，可在此環境注入 `QTS_WEBHOOK_URL` 和選用的 `QTS_WEBHOOK_SECRET`。檔案權限應限制為排程帳號可讀；Cron wrapper 請引用秘密檔，不要複製秘密內容。
 
 ## systemd service 與 timer
 

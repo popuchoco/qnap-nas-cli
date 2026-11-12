@@ -11,7 +11,7 @@ from unittest.mock import patch
 from qnap_nas_cli.cli import main, parser
 from qnap_nas_cli.config import Config
 from qnap_nas_cli.errors import QtsError
-from qnap_nas_cli.health_report import _write_staged_file, write_health_report, write_plex_security_report
+from qnap_nas_cli.health_report import _write_staged_file, write_health_report, write_legacy_ransomware_report, write_plex_security_report
 
 
 def synthetic_observation(status="unhealthy"):
@@ -199,6 +199,33 @@ class HealthReportWriterTest(unittest.TestCase):
         self.assertIn("Plex QPKG version: `unknown`", summary)
         self.assertNotIn("injected", summary)
 
+    def test_legacy_ransomware_report_is_atomic_redacted_and_codes_only(self):
+        observation = {
+            "report_type": "qnap_legacy_ransomware_posture",
+            "assessment": "indeterminate",
+            "system": {"model": "TS-X41", "firmware": "5.2.8", "build": "20251216", "hostname": "PRIVATE_HOST"},
+            "findings": [{"code": "qsnatch_control_not_confirmed_accounts_reviewed", "severity": "warning", "message": "PRIVATE_FINDING"}],
+            "unknowns": [{"code": "malware_remover_freshness_unverified", "message": "PRIVATE_UNKNOWN"}],
+            "password": "PRIVATE_PASSWORD",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "legacy-report"
+            receipt = write_legacy_ransomware_report(target, observation, emitted_at=self.emitted_at)
+            self.assertEqual(receipt["status"], "indeterminate")
+            self.assertEqual(receipt["files"], [
+                "legacy-ransomware-20261106T043456Z.json",
+                "legacy-ransomware-20261106T043456Z.md",
+                "manifest.sha256",
+            ])
+            summary = (target / receipt["files"][1]).read_text(encoding="utf-8")
+            rendered = (target / receipt["files"][0]).read_text(encoding="utf-8")
+        self.assertIn("Assessment: `indeterminate`", summary)
+        self.assertIn("qsnatch_control_not_confirmed_accounts_reviewed", summary)
+        self.assertNotIn("PRIVATE_FINDING", summary)
+        self.assertNotIn("PRIVATE_UNKNOWN", summary)
+        self.assertNotIn("PRIVATE_HOST", rendered)
+        self.assertNotIn("PRIVATE_PASSWORD", rendered)
+
 
 class HealthReportCliTest(unittest.TestCase):
     class Client:
@@ -282,6 +309,31 @@ class HealthReportCliTest(unittest.TestCase):
         audit.assert_called_once_with(config, check_known_process_iocs=True)
         notify.assert_called_once()
         self.assertEqual(notify.call_args.kwargs["force"], None)
+        write_report.assert_called_once_with(Path("out"), report)
+        self.assertEqual(json.loads(output.getvalue()), receipt)
+
+    def test_legacy_ransomware_report_cli_dispatches_controls_and_local_bundle(self):
+        config = Config("https://nas.invalid", "ops", ssh_host="nas", ssh_user="ops")
+        report = {"assessment": "indeterminate", "findings": [], "unknowns": []}
+        receipt = {"directory": "out", "status": "indeterminate", "files": ["legacy-ransomware-report"]}
+        output = io.StringIO()
+        client = self.Client()
+        with patch("qnap_nas_cli.cli._config", return_value=config), \
+             patch("qnap_nas_cli.cli.QtsClient", return_value=client), \
+             patch("qnap_nas_cli.cli._login"), \
+             patch("qnap_nas_cli.cli.legacy_ransomware_audit", return_value=report) as audit, \
+             patch("qnap_nas_cli.cli.maybe_notify_legacy_ransomware", return_value=None) as notify, \
+             patch("qnap_nas_cli.cli.webhook_enabled", return_value=False), \
+             patch("qnap_nas_cli.cli.write_legacy_ransomware_report", return_value=receipt) as write_report, \
+             patch.object(sys, "stdout", output):
+            code = main([
+                "report", "legacy-ransomware", "--directory", "out",
+                "--historical-internet-exposure", "no",
+                "--qsnatch-control", "qts_latest=yes", "--json",
+            ])
+        self.assertEqual(code, 0)
+        audit.assert_called_once_with(client, config, "no", None, {"qts_latest": "yes"})
+        notify.assert_called_once_with(report, force=None)
         write_report.assert_called_once_with(Path("out"), report)
         self.assertEqual(json.loads(output.getvalue()), receipt)
 

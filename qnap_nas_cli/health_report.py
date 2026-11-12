@@ -94,7 +94,40 @@ def _codes(report: Mapping[str, Any], key: str) -> list:
 
 
 def _summary(report: Mapping[str, Any], emitted_at: str, kind: str = "health") -> bytes:
-    if kind == "plex2shell":
+    if kind in ("plex2shell", "legacy_ransomware"):
+        if kind == "legacy_ransomware":
+            assessment = report.get("assessment")
+            if assessment not in (
+                "vulnerable", "vulnerable_exposed", "potentially_compromised",
+                "suspected", "patched", "indeterminate",
+            ):
+                assessment = "unknown"
+            system = report.get("system")
+            if not isinstance(system, dict):
+                system = {}
+            device = []
+            for label, key in (("model", "model"), ("firmware", "firmware"), ("build", "build")):
+                value = system.get(key)
+                if isinstance(value, str) and value and _SAFE_VERSION.fullmatch(value):
+                    device.append("{}=`{}`".format(label, _inline(value)))
+            lines = [
+                "# Legacy ransomware / QSnatch security report",
+                "",
+                "- Assessment: `{}`".format(assessment),
+                "- Emitted at: `{}`".format(emitted_at),
+            ]
+            if device:
+                lines.append("- Device: " + ", ".join(device))
+            lines.extend((
+                "",
+                "- Finding codes: {}".format(", ".join("`{}`".format(_inline(code)) for code in _codes(report, "findings")) or "none"),
+                "- Unknown codes: {}".format(", ".join("`{}`".format(_inline(code)) for code in _codes(report, "unknowns")) or "none"),
+                "",
+                "This package posture and operator checklist are not a malware scan or a clean verdict.",
+                "",
+            ))
+            return "\n".join(lines).encode("utf-8")
+
         assessment = report.get("assessment")
         if assessment not in (
             "not_installed", "vulnerable", "vulnerable_exposed", "potentially_compromised",
@@ -194,7 +227,7 @@ def _write_observation_report(
         raise QtsError("health observation 根節點必須是 object")
     _restore_codes(safe_observation, observation)
     safe_observation["emitted_at"] = emitted
-    prefix = "plex2shell" if kind == "plex2shell" else "health"
+    prefix = {"plex2shell": "plex2shell", "legacy_ransomware": "legacy-ransomware"}.get(kind, "health")
     json_name = "{}-{}.json".format(prefix, stamp)
     summary_name = "{}-{}.md".format(prefix, stamp)
     json_content = _json_bytes(safe_observation)
@@ -260,4 +293,16 @@ def write_plex_security_report(
     """Publish a complete redacted Plex2Shell posture report bundle atomically."""
     return _write_observation_report(
         directory, observation, emitted_at=emitted_at, kind="plex2shell", status_key="assessment"
+    )
+
+
+def write_legacy_ransomware_report(
+    directory: Path,
+    observation: Mapping[str, Any],
+    *,
+    emitted_at: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Publish a complete redacted legacy-ransomware posture bundle atomically."""
+    return _write_observation_report(
+        directory, observation, emitted_at=emitted_at, kind="legacy_ransomware", status_key="assessment"
     )

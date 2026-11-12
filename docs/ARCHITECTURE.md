@@ -40,6 +40,8 @@ Interactive CLI authentication prompts for a TOTP only after QTS reports that th
 
 `legacy_ransomware.py` applies only the fixed QSA-21-13 HBS 3 and QSA-22-24 Photo Station version baselines for explicitly mapped firmware branches, and reports QSnatch package/security posture from fixed QPKG metadata reads. NAS-201911-01 hardening controls are operator-confirmed yes/no inputs; omitted values remain `unknown`. App metadata does not prove Malware Remover definition freshness, scan completion, service configuration, exposure, or absence of compromise. CLI and MCP do not install/update software, run scanners, rotate credentials, remove accounts/apps, or change services/network settings. See [LEGACY-RANSOMWARE.md](LEGACY-RANSOMWARE.md).
 
+The same observation can be published through `qts report legacy-ransomware` using the shared atomic report writer. Webhook delivery is limited to vulnerable/suspected statuses; indeterminate notifications are opt-in and payloads include only fixed trigger, assessment, device fields and finding/unknown codes.
+
 ## Mutation gate
 
 A future modifying command must provide all of the following before release:

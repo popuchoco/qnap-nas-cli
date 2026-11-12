@@ -14,11 +14,11 @@ from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evidence_bundle
 from .evidence_capsule import DEFAULT_MAX_BYTES, validate_attachments
-from .health_report import write_health_report, write_plex_security_report
+from .health_report import write_health_report, write_legacy_ransomware_report, write_plex_security_report
 from .remediation import apply_plan, unavailable_plan
 from .security import IOC_FIELDS
 from .legacy_ransomware import parse_qsnatch_control
-from .webhook import maybe_notify_health, maybe_notify_incident, maybe_notify_plex_security, webhook_enabled
+from .webhook import maybe_notify_health, maybe_notify_incident, maybe_notify_legacy_ransomware, maybe_notify_plex_security, webhook_enabled
 
 
 def parser() -> argparse.ArgumentParser:
@@ -54,6 +54,14 @@ def parser() -> argparse.ArgumentParser:
     report_plex = report_subs.add_parser("plex2shell", help="執行 Plex 修補狀態稽核並寫入本機報告 bundle")
     report_plex.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
     report_plex.add_argument("--check-known-process-iocs", action="store_true", help="選用固定的三個 QNAP 可疑程序名稱檢查")
+    report_legacy = report_subs.add_parser("legacy-ransomware", help="排程式檢查 Qlocker／DeadBolt／QSnatch posture 並寫入本機報告 bundle")
+    report_legacy.add_argument("--directory", type=Path, required=True, help="新的或空的本機報告目錄")
+    report_legacy.add_argument("--historical-internet-exposure", choices=["yes", "no"], help="Operator-reported exposure while an affected package version was installed")
+    report_legacy.add_argument("--current-internet-exposure", choices=["yes", "no"], help="Operator-reported current Internet exposure")
+    report_legacy.add_argument(
+        "--qsnatch-control", action="append", type=parse_qsnatch_control, metavar="CONTROL=yes|no",
+        help="Operator confirmation for a NAS-201911-01 control; repeat for multiple controls",
+    )
     storage_parser = subs.add_parser("storage", aliases=["disks", "volumes"], help="磁碟與儲存空間")
     storage_parser.add_argument("--volume-index", type=int, action="append", help="額外查詢指定 volume index，可重複指定；預設 1")
     subs.add_parser("network", help="網路介面與 DNS")
@@ -109,7 +117,7 @@ def parser() -> argparse.ArgumentParser:
         option = "--ioc-{}".format(indicator_name.replace("_", "-"))
         plex_audit.add_argument(option, dest="ioc_" + indicator_name, choices=["yes", "no"], help="Operator-reported: {}".format(description))
 
-    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health, report_plex)
+    nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health, report_plex, report_legacy)
     for command_parser in nested_parsers:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
         command_parser.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -315,12 +323,27 @@ def main(argv: Optional[list] = None) -> int:
                 if delivery is not None or args.webhook is not None or webhook_enabled():
                     _add_webhook_result(value, args, delivery)
                 receipt = write_health_report(args.directory, value)
-            else:
+            elif args.report_command == "plex2shell":
                 value = plex2shell_audit(config, check_known_process_iocs=args.check_known_process_iocs)
                 delivery = maybe_notify_plex_security(value, force=args.webhook)
                 if delivery is not None or args.webhook is not None or webhook_enabled():
                     _add_webhook_result(value, args, delivery)
                 receipt = write_plex_security_report(args.directory, value)
+            else:
+                control_pairs = args.qsnatch_control or []
+                control_names = [name for name, _ in control_pairs]
+                if len(control_names) != len(set(control_names)):
+                    raise QtsError("同一個 --qsnatch-control 不可重複指定")
+                with QtsClient(config) as client:
+                    _login(client)
+                    value = legacy_ransomware_audit(
+                        client, config, args.historical_internet_exposure, args.current_internet_exposure,
+                        dict(control_pairs),
+                    )
+                delivery = maybe_notify_legacy_ransomware(value, force=args.webhook)
+                if delivery is not None or args.webhook is not None or webhook_enabled():
+                    _add_webhook_result(value, args, delivery)
+                receipt = write_legacy_ransomware_report(args.directory, value)
             _print(receipt, args.json)
             return 0
         if args.command == "incident":
