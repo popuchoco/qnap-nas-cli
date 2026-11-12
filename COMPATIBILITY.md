@@ -10,16 +10,17 @@
 
 Reviewed File Station fixture 位於 [`tests/fixtures/ts431k-qts-5.2.8-build-20251216/filestation/`](tests/fixtures/ts431k-qts-5.2.8-build-20251216/filestation/)；它是 depth-0 partial capture，不提供完整 filesystem coverage。Synthetic fixtures 僅保留作 clean、IOC 與 truncation edge-case 測試。
 
-## 尚未經真機 fixture 驗證的 main-only posture audits
+## 尚未列入發布支援範圍的 main-only security posture audits
 
-以下子命令存在於 `main`，但尚未列入已發布 `0.4.0` 支援範圍，且目前沒有 TS-431K 的專屬實機 fixture：
+以下子命令存在於 `main`，但尚未列入已發布 `0.4.0` 支援範圍。此表記錄待驗證項目，不包含使用者 NAS 的實機結果：
 
 | 功能 | 尚待實機確認 |
 |---|---|
-| Plex2Shell audit/report | `PlexMediaServer` 的精確 `getcfg Version` 字串（含任何 hash/build 後綴）、`/bin/pidof` 是否存在且能以配置的 SSH account 執行、各 QPKG key 是否在 TS-431K/QTS 5.2.8 存在。版本 parser 不會猜測未知後綴；格式不符時仍為 unknown。 |
-| Legacy ransomware/QSnatch audit/report | HBS 3、Photo Station、Malware Remover、Security Center、Security Counselor 的精確 QPKG section/key 與輸出格式；SSH 權限不足／首次 timeout 的報告契約。 |
-| SSH account/key boundary | QTS 上非 administrators 是否可用 SSH、`authorized_keys` 是否支援 `from=`／`restrict`／forced-command wrapper。CLI allowlist 只限制本工具發出的固定命令，不限制遭複製的 key 在 NAS 上的權限。 |
+| Plex2Shell audit/report | 需取得經遮蔽的實際 `PlexMediaServer` `getcfg Version` 字串（含任何 hash/build 後綴），並確認固定 runtime probe 在目標 SSH policy 下可用。候選 suffix parser 目前只有 synthetic tests。 |
+| Legacy ransomware/QSnatch audit/report | 需 fixture 驗證 HBS 3、Photo Station、Malware Remover、Security Center、Security Counselor 的實際 QPKG section/key、版本與 direct collector 輸出。 |
+| SSH account/key boundary | 非管理員 SSH 登入、forced-command dispatcher 輸出協定，以及 `from=`／`restrict` 支援均需實測。Client allowlist 不限制 NAS 帳號或遭複製 key 的權限。 |
+| Windows atomic report/evidence writes | GitHub Actions workflow 包含 Windows 2022 report/evidence atomic writer tests；請以 CI run 確認目標 revision 的結果。 |
 
-收集上述 fixture 時，在隔離管理 LAN 上以實機 read-only audit 命令輸出 JSON，審閱確認只保留型號、QTS build、QPKG 欄位、固定 IOC probe 狀態及 collection error code；不要提交 hostname、IP、使用者名稱、憑證、日誌或不相關 package data。必須保留實際版本字串原貌，供 M3 version parser 測試；不可以用手寫或猜測字串冒充 TS-431K fixture。加入 fixture 前記錄 firmware/build、擷取日期、命令及審閱者；之後才更新 compatibility claim 與評估 `0.5.0`。
+若要新增公開 fixture，先取得明確同意並做隱私／安全審查；預設不將使用者的實機輸出、設備識別資訊、SSH policy、程序快照或套件清單提交到 repository。若只需要 regression coverage，使用 synthetic fixture 並清楚標示，不冒充真機資料。實機相容性只有在授權公開、經遮蔽審查的 fixture 存在後才更新為公開支援 claim；之後才評估 `0.5.0`。
 
-證據來源：[`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md)、[`PROVENANCE.md`](tests/fixtures/ts431k-qts-5.2.8-build-20251216/PROVENANCE.md)、[`ssh-provenance.md`](tests/fixtures/ts431k-qts-5.2.8-build-20251216/ssh-provenance.md)。這些記錄證明觀察到的輸出形狀與測試範圍，不代表當前或未來設備狀態。
+相容性證據流程見 [`docs/LIVE-DRY-RUN-TS431K.md`](docs/LIVE-DRY-RUN-TS431K.md) 與 fixture provenance。任何公開證據只說明其明確涵蓋的觀察範圍，不代表當前或未來設備狀態。

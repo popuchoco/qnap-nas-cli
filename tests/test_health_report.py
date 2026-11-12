@@ -151,7 +151,7 @@ class HealthReportWriterTest(unittest.TestCase):
             "assessment": "suspected",
             "patch_status": "patched",
             "checked_at": "2026-11-06T00:00:00+00:00",
-            "package": {"package": "PlexMediaServer", "version": "1.43.3.10861", "runtime_health": "unknown"},
+            "package": {"package": "PlexMediaServer", "version": "1.43.3.10861-0123456789abcdef0123456789abcdef01234567", "runtime_health": "unknown"},
             "findings": [{"code": "plex_ioc_known_process_mylovelyminer", "severity": "high", "message": "password=REPORT_MESSAGE_CANARY"}],
             "unknowns": [{"code": "runtime_and_compromise_not_checked", "message": "sid=UNKNOWN_CANARY"}],
             "references": ["https://example.invalid/"],
@@ -176,7 +176,8 @@ class HealthReportWriterTest(unittest.TestCase):
         self.assertEqual(payload["assessment"], "suspected")
         self.assertEqual(payload["findings"][0]["code"], "plex_ioc_known_process_mylovelyminer")
         self.assertIn("Assessment: `suspected`", summary)
-        self.assertIn("Plex QPKG version: `1.43.3.10861`", summary)
+        self.assertEqual(payload["package"]["version"], "1.43.3.10861-0123456789abcdef0123456789abcdef01234567")
+        self.assertIn("Plex QPKG version: `1.43.3.10861-0123456789abcdef0123456789abcdef01234567`", summary)
         self.assertIn("plex_ioc_known_process_mylovelyminer", summary)
         self.assertNotIn("REPORT_MESSAGE_CANARY", summary)
         self.assertNotIn("UNKNOWN_CANARY", summary)

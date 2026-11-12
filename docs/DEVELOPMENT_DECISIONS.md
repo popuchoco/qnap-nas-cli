@@ -55,3 +55,7 @@ The TS-431K fixture contains QNAP system arrays with `[128/3]` member maps. Thei
 ## ADR-014 — Plan replay is at-most-once, not idempotency proof
 
 A completed plan cannot be replayed as another success: its before-state has changed, so apply stops as `stale_plan` before invoking the adapter again. An ambiguous transport failure remains `partial_failure` even if readback sees the target state. Retrying requires a fresh observation and plan. This prevents accidental duplicate action, but each future QTS adapter must still prove that its endpoint is convergent and document side effects; engine-level replay protection is not evidence that a vendor operation is idempotent. A second administrator and independent recovery path are accepted only after a live login and route exercise in the current maintenance window.
+
+## ADR-015 — Forced-command compatibility requires an observed protocol
+
+A server-side forced-command dispatcher and this client's fixed SSH probes are separate controls. The dispatcher may reject a direct client probe before execution; report that as a collection failure, not as evidence the command or package is absent. Do not guess the output format of allowed wrapper verbs or parse an unreviewed process table. Add an adapter only after sanitized raw fixtures define the verbs, schema, limits, and failure contract. A forced command on an administrator account does not change the account's underlying privileges.

@@ -15,7 +15,13 @@ RULE_ID = "plex2shell-qnap-2026-11"
 PATCHED_BASELINE = (1, 43, 3, 10861)
 QNAP_ADVISORY = "https://www.qnap.com/zh-tw/how-to/faq/article/plex2shell-check-and-remediation-faq-for-qnap-nas-users"
 PLEX_ADVISORY = "https://forums.plex.tv/t/important-security-update-for-plex-media-server-v1-43-2-and-earlier/942319/1"
-_VERSION_RE = re.compile(r"^\s*(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?\s*$")
+# Candidate QPKG syntax: the four numeric version components may be followed
+# by a Git-style hexadecimal build identifier. This is intentionally narrow;
+# it does not strip arbitrary vendor labels, prerelease tags, or extra fields.
+_VERSION_RE = re.compile(
+    r"^\s*([0-9]+)\.([0-9]+)\.([0-9]+)"
+    r"(?:\.([0-9]+)(?:-([0-9A-Fa-f]{7,40}))?)?\s*$"
+)
 IOC_FIELDS = {
     "unknown_plex_process": "是否發現 Plex 啟動、但無法辨識的程序（包含 QNAP 列出的程序名稱指標）。",
     "unfamiliar_codecs_files": "是否在 Plex Codecs 資料夾發現不熟悉的 .so 或 .dll 檔案。",
@@ -26,13 +32,17 @@ IOC_FIELDS = {
 
 
 def parse_plex_version(value: Any) -> Optional[Tuple[int, int, int, int]]:
-    """Parse three- or four-component QPKG/Plex versions; unknown stays None."""
+    """Parse numeric versions and candidate four-part hexadecimal build suffixes.
+
+    The suffix form is a conservative parser candidate, not a TS-431K-verified
+    QPKG contract. The raw value remains in the observation for review.
+    """
     if not isinstance(value, str):
         return None
     match = _VERSION_RE.match(value)
     if not match:
         return None
-    major, minor, patch, build = match.groups()
+    major, minor, patch, build, _hash_suffix = match.groups()
     return (int(major), int(minor), int(patch), int(build or 0))
 
 

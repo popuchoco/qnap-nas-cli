@@ -7,7 +7,7 @@
 >
 > **支援政策：**僅支援最新的 `main` 與最新 release。
 >
-> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。最新已發布版本為 `0.4.0`，可用 pipx 或 pip 安裝。`main` 另含尚未發布的 Plex2Shell／legacy ransomware audit 與排程報告；它們尚未完成 TS-431K 真機 fixture review，不屬於 `0.4.0` 支援契約，也未打 `0.5.0`。安裝方式見[安裝指南](docs/INSTALL.md)。
+> **Mutation 尚未啟用：**沒有生產用 mutation adapter；MCP 不提供通用 shell 或任意 QTS API 工具。最新已發布版本為 `0.4.0`，可用 pipx 或 pip 安裝。`main` 另含尚未發布的 Plex2Shell／legacy ransomware audit 與排程報告；它們尚未完成公開 fixture review，不屬於 `0.4.0` 支援契約，也未打 `0.5.0`。安裝方式見[安裝指南](docs/INSTALL.md)。
 
 安全優先、零第三方 Python 相依的 QNAP QTS 診斷 CLI 與唯讀 MCP Server。目標是讓人與 AI agent 都能取得可稽核的 NAS 健康證據，而不是在缺乏實機驗證時直接修改 RAID、磁碟或網路服務。
 

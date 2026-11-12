@@ -17,7 +17,9 @@ from .redaction import redact_value
 
 _SAFE_CODE = re.compile(r"^[a-z][a-z0-9_.:-]{0,79}$")
 _SAFE_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
-_NUMERIC_VERSION = re.compile(r"^\d+(?:\.\d+){1,3}$")
+_NUMERIC_VERSION = re.compile(
+    r"^(?:\d+(?:\.\d+){1,3}|\d+\.\d+\.\d+\.\d+-[0-9A-Fa-f]{7,40})$"
+)
 
 
 def _emission_time(value: Optional[datetime]) -> tuple:
