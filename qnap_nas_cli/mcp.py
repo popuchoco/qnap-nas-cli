@@ -4,11 +4,12 @@ import sys
 from typing import Any, Callable, Dict
 
 from . import __version__
-from .commands import disks_ssh, health, incident_report, network, raid, services, smart_details, storage, sysinfo, tailscale
+from .commands import disks_ssh, health, incident_report, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale
 from .config import Config, password_from_environment
 from .client import QtsClient
 from .errors import QtsError
 from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS
+from .security import IOC_FIELDS
 
 
 TOOLS = [
@@ -21,6 +22,24 @@ TOOLS = [
     {"name": "qts_smart_details", "description": "Read SMART attributes for one disk bay through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {"disk": {"type": "integer", "minimum": 1, "maximum": 64}}, "required": ["disk"]}},
     {"name": "qts_disk_topology", "description": "Read physical disk bay, role and model through configured passwordless SSH", "inputSchema": {"type": "object", "properties": {}}},
     {"name": "qts_services", "description": "Read Container Station and Tailscale package state", "inputSchema": {"type": "object", "properties": {}}},
+    {
+        "name": "qts_plex_security",
+        "description": "Read-only Plex patch posture plus operator-reported indicators; optional fixed pidof checks for three known process names only; never remediates",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "exposure_during_vulnerable_version": {"type": "string", "enum": ["yes", "no"]},
+                "current_exposure": {"type": "string", "enum": ["yes", "no"]},
+                "ioc_unknown_plex_process": {"type": "string", "enum": ["yes", "no"]},
+                "ioc_unfamiliar_codecs_files": {"type": "string", "enum": ["yes", "no"]},
+                "ioc_proxystream_st_connection": {"type": "string", "enum": ["yes", "no"]},
+                "ioc_sustained_idle_cpu": {"type": "string", "enum": ["yes", "no"]},
+                "ioc_malware_remover_detection": {"type": "string", "enum": ["yes", "no"]},
+                "check_known_process_iocs": {"type": "boolean"}
+            }
+        }
+    },
     {"name": "qts_incident", "description": "Bounded read-only ransomware IOC triage for visible shares plus health evidence; never reports clean and never contains/remediates", "inputSchema": {"type": "object", "properties": {"max_items": {"type": "integer", "minimum": 1, "maximum": MAX_MAX_ITEMS, "default": DEFAULT_MAX_ITEMS}}}},
 ]
 
@@ -54,6 +73,26 @@ def call_tool(config: Config, name: str, arguments: Dict[str, Any] = None) -> Di
         if arguments:
             raise QtsError("此 MCP tool 不接受參數")
         return ssh_operations[name](config)
+    if name == "qts_plex_security":
+        ioc_arguments = {"ioc_" + field: field for field in IOC_FIELDS}
+        allowed = {"exposure_during_vulnerable_version", "current_exposure", "check_known_process_iocs"} | set(ioc_arguments)
+        if set(arguments) - allowed:
+            raise QtsError("Only documented operator-reported exposure/IOC fields are accepted")
+        for key, value in arguments.items():
+            if key == "check_known_process_iocs":
+                if type(value) is not bool:
+                    raise QtsError("check_known_process_iocs must be boolean")
+                continue
+            if value not in ("yes", "no"):
+                raise QtsError("{} must be 'yes' or 'no'".format(key))
+        indicators = {ioc_arguments[key]: value for key, value in arguments.items() if key in ioc_arguments}
+        return plex2shell_audit(
+            config,
+            arguments.get("exposure_during_vulnerable_version"),
+            arguments.get("current_exposure"),
+            indicators,
+            arguments.get("check_known_process_iocs", False),
+        )
     if name in ("qts_health", "qts_storage"):
         if set(arguments) - {"volume_indices"}:
             raise QtsError("只接受 volume_indices 參數")

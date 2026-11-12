@@ -15,7 +15,15 @@ ALLOWED_COMMANDS = {
     "container_station_status": (["/sbin/getcfg", "container-station", "Status", "-f", "/etc/config/qpkg.conf"], (0,)),
     "tailscale_enabled": (["/sbin/getcfg", "Tailscale", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
     "tailscale_install_path": (["/sbin/getcfg", "Tailscale", "Install_Path", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "plex_name": (["/sbin/getcfg", "PlexMediaServer", "Name", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "plex_version": (["/sbin/getcfg", "PlexMediaServer", "Version", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "plex_status": (["/sbin/getcfg", "PlexMediaServer", "Status", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "plex_enabled": (["/sbin/getcfg", "PlexMediaServer", "Enable", "-f", "/etc/config/qpkg.conf"], (0,)),
+    "plex_ioc_myawesomeproxy": (["pidof", "myawesomeproxy"], (0, 1)),
+    "plex_ioc_mylovelyminer": (["pidof", "mylovelyminer"], (0, 1)),
+    "plex_ioc_x12345": (["pidof", "x12345"], (0, 1)),
 }
+PLEX_KNOWN_PROCESS_IOCS = ("myawesomeproxy", "mylovelyminer", "x12345")
 
 
 def _validate_ssh_config(config: Config) -> None:
@@ -139,3 +147,57 @@ def service_status(config: Config) -> Dict[str, Any]:
     container_status = run_ssh(config, "container_station_status").strip()
     tailscale_enabled = run_ssh(config, "tailscale_enabled").strip()
     return {"backend": "ssh", "container_station": {"enabled": container_enabled.lower() == "true", "qpkg_status": container_status or "unknown", "runtime": "unknown"}, "tailscale": {"enabled": tailscale_enabled.lower() == "true"}, "limitations": ["QPKG Enable/Status 不證明 daemon 或 workload 正在健康運行；本工具不會自動 restart。"]}
+
+
+def plex_qpkg_info(config: Config) -> Dict[str, Any]:
+    """Read only Plex QPKG metadata; this does not inspect Plex runtime health."""
+    values = {
+        "name": run_ssh(config, "plex_name").strip(),
+        "version": run_ssh(config, "plex_version").strip(),
+        "status": run_ssh(config, "plex_status").strip(),
+        "enabled_raw": run_ssh(config, "plex_enabled").strip(),
+    }
+    installed = any(values[key] for key in ("name", "version", "status", "enabled_raw"))
+    enabled_value = values["enabled_raw"].lower()
+    enabled = True if enabled_value in ("true", "1", "yes") else False if enabled_value in ("false", "0", "no") else None
+    return {
+        "package": "PlexMediaServer",
+        "installed": installed,
+        "version": values["version"] or None,
+        "qpkg_status": values["status"] or None,
+        "enabled": enabled,
+        "data_status": "not_installed" if not installed else "version_available" if values["version"] else "version_unavailable",
+        "version_source": "QPKG metadata (/etc/config/qpkg.conf)",
+        "runtime_health": "unknown",
+    }
+
+
+def plex_known_process_iocs(config: Config) -> Dict[str, Any]:
+    """Probe only QNAP-listed exact process names; never capture a process table."""
+    results = []
+    failed = False
+    for name in PLEX_KNOWN_PROCESS_IOCS:
+        if failed:
+            results.append({"name": name, "status": "not_attempted", "match_count": None})
+            continue
+        try:
+            raw = run_ssh(config, "plex_ioc_{}".format(name))
+        except QtsError:
+            results.append({"name": name, "status": "unavailable", "match_count": None})
+            failed = True
+            continue
+        tokens = raw.split()
+        if any(not re.fullmatch(r"[0-9]+", token) for token in tokens):
+            results.append({"name": name, "status": "unavailable", "match_count": None})
+            failed = True
+            continue
+        results.append({
+            "name": name,
+            "status": "found" if tokens else "not_found",
+            "match_count": len(tokens) if tokens else 0,
+        })
+    return {
+        "status": "partial" if failed else "exact_names_checked",
+        "scope": "Only exact QNAP-listed process names are checked at collection time; no process table, parent/child relation, or command line is read.",
+        "results": results,
+    }

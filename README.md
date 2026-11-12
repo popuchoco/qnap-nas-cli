@@ -39,6 +39,7 @@
 - `disk-topology`：用 `qcli_storage -d` 讀取實體 bay、data/spare 角色、容量與型號。
 - `smart-details DISK`：以已驗證的 bay 編號讀取 QNAP SMART attributes；韌體空回應會明確標為 unavailable。
 - `services`：唯讀觀察 Container Station／Tailscale QPKG metadata，不把 `Status=complete` 誤稱為 daemon 正常運行。
+- `security audit plex2shell`：比較 Plex QPKG 版本與 QNAP 修補基線；可選擇用固定 `pidof` 查三個已知程序名，其他指標由管理者回報；不是完整入侵掃描，也不會修改 NAS。
 - `dump`：匯出已遮蔽 hostname、序號、IP 與 DNS 的相容性樣本。
 - `fixture validate`：不連 NAS，離線檢查 dump 能否解析及是否存在未知欄位／狀態碼。
 - `incident scan`：有上限地遞迴掃描 File Station 可見共享資料夾的檔名，檢查 Qlocker／DeadBolt 已知指標，並彙整 health、RAID 與套件 observation；報告會標記 `truncated`、`depth_limited` 與截斷原因。
@@ -47,7 +48,7 @@
 - `incident evidence`：以 private staging 和 atomic directory publish 保存遞迴遮蔽後的 report、codes-only `summary.md` 與 format v2 SHA-256 manifest；可重複指定最多 100 個 `--attach-candidate`，但每個路徑都必須精確出現在 report 的 indicator examples，並受 `--max-bytes` 合計上限限制。
 - `incident rescue`：輸出離線備份復原步驟；也可將 report 已列出的可疑檔案唯讀串流匯出到新的本機 case directory，產生 SHA-256，不會解密、執行或回寫 NAS。
 - `repair plan`／`repair apply`：具備確認碼、短效 plan、裝置身分／前置條件／before-state／readback 驗證的 fail-closed 框架；目前沒有生產用 QTS mutation adapter，所有 CLI plan 都會明確拒絕執行，apply 不會改 NAS。
-- `mcp`：提供十個唯讀 stdio MCP tools。
+- `mcp`：提供十一個唯讀 stdio MCP tools。
 - 全部資料命令支援 `--json`。
 
 Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋 NAS 原始日誌，也不包含 disk image。附件是唯讀樣本匯出，不會寫回、執行或解密 NAS 檔案；rescue／`--attach-candidate` 匯出的樣本一律存成安全檔名 `samples/sample-NNN.bin`（非原始 NAS 路徑），原始 File Station 路徑保留在 manifest／receipt 的 `source` 欄位。capsule 輸出目錄必須是新的或空目錄，拒絕 symlink、非空目錄、root、目前工作目錄與 home 目錄。
@@ -100,6 +101,10 @@ qts raid --json
 qts disk-topology --json
 qts smart-details 2 --json
 qts services --json
+qts security audit plex2shell --json
+qts security audit plex2shell --exposure-during-vulnerable-version yes --current-exposure no --json
+qts security audit plex2shell --ioc-malware-remover-detection yes --json
+qts security audit plex2shell --check-known-process-iocs --json
 
 # 勒索事件：有限掃描，建立 atomic 本機 evidence capsule
 qts incident scan --max-items 10000 --evidence-dir case-2026-01 --json
@@ -158,6 +163,8 @@ qts fixture validate qts-dump --json
 - `qts_smart_details`
 - `qts_disk_topology`
 - `qts_services`
+- `qts_plex_security` (QPKG version posture plus optional operator-reported exposure; not an incident/compromise scan)
+- [Plex2Shell audit scope, version rule, and operator response](docs/PLEX2SHELL.md)
 - `qts_incident`（有限名稱 IOC 掃描；assessment 不會回報 clean）
 
 MCP 目前刻意只讀，不提供通用 shell 或任意 QTS API 呼叫。

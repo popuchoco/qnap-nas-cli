@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a read-only Plex2Shell patch-posture and IOC-triage audit using fixed QPKG metadata probes, operator-reported indicators, and opt-in exact-name `pidof` checks; classify unknowns conservatively and never perform broad runtime scanning or modify the NAS.
+
 ## 0.4.0 — 2026-11-06
 
 - Add opt-in, fail-soft HTTPS webhook notifications for unhealthy health results and suspected incident scans; keep indeterminate health opt-in and the mutation gate closed. Scrub password/sid/qtoken assignments from redacted string values used in payloads.

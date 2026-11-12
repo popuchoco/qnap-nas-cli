@@ -11,7 +11,7 @@ class McpTest(unittest.TestCase):
     config = Config("http://127.0.0.1:8080", "test")
     def test_tools_are_read_only_named(self):
         names = {tool["name"] for tool in TOOLS}
-        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_smart_details", "qts_disk_topology", "qts_services", "qts_incident"})
+        self.assertEqual(names, {"qts_status", "qts_health", "qts_storage", "qts_network", "qts_tailscale", "qts_raid", "qts_smart_details", "qts_disk_topology", "qts_services", "qts_incident", "qts_plex_security"})
 
     def test_smart_details_schema_requires_bounded_disk(self):
         tool = next(tool for tool in TOOLS if tool["name"] == "qts_smart_details")
@@ -46,6 +46,35 @@ class McpTest(unittest.TestCase):
             call_tool(self.config, "qts_incident", {"max_items": 100001})
         with self.assertRaises(QtsError):
             call_tool(self.config, "qts_incident", {"apply": True})
+
+    def test_plex_security_accepts_only_operator_reported_yes_no_fields(self):
+        from qnap_nas_cli.mcp import call_tool
+
+        expected = {"assessment": "potentially_compromised"}
+        with patch("qnap_nas_cli.mcp.plex2shell_audit", return_value=expected) as audit:
+            result = call_tool(self.config, "qts_plex_security", {
+                "exposure_during_vulnerable_version": "yes",
+                "current_exposure": "no",
+                "ioc_malware_remover_detection": "yes",
+            })
+        self.assertEqual(result, expected)
+        audit.assert_called_once_with(self.config, "yes", "no", {"malware_remover_detection": "yes"}, False)
+        for args in (
+            {"current_exposure": "unknown"},
+            {"current_exposure": True},
+            {"ioc_sustained_idle_cpu": "maybe"},
+            {"check_known_process_iocs": "true"},
+            {"arbitrary_command": "id"},
+        ):
+            with self.subTest(args=args), self.assertRaises(QtsError):
+                call_tool(self.config, "qts_plex_security", args)
+
+    def test_plex_security_runtime_probe_is_explicit_opt_in(self):
+        from qnap_nas_cli.mcp import call_tool
+
+        with patch("qnap_nas_cli.mcp.plex2shell_audit", return_value={"assessment": "patched"}) as audit:
+            call_tool(self.config, "qts_plex_security", {"check_known_process_iocs": True})
+        audit.assert_called_once_with(self.config, None, None, {}, True)
 
     def test_smart_details_rejects_missing_and_extra_arguments(self):
         for arguments in ({}, {"disk": 2, "extra": True}):

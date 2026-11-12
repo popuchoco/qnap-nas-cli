@@ -16,5 +16,6 @@ Schemas use JSON Schema and are kept in `schemas/`:
 - `observation-storage.schema.json`: standalone `qts storage` output or the nested health `storage` object.
 - `observation-raid.schema.json`: the `qts raid` / MCP `qts_raid` output from `ssh_backend.raid_status`.
 - `observation-incident.schema.json`: the report returned by `qts incident scan` / MCP `qts_incident`. Its scan evidence is `ransomware_scan.indicators`; no-hit results remain `indeterminate`, never `clean`.
+- `observation-security-plex2shell.schema.json`: the read-only `qts security audit plex2shell` / MCP `qts_plex_security` version-posture and IOC triage result. Manual exposure/indicator fields remain operator-reported; the optional runtime probe covers three exact process names only. It is not an intrusion verdict, and no result may be interpreted as `clean`.
 
 RAID and incident payloads have their own schemas and do not have to expose the five-field health envelope. Contract tests use a small stdlib-only validator for the schema keywords used here; no JSON Schema package is a runtime or test dependency.

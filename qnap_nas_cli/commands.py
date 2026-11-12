@@ -10,7 +10,8 @@ from .filestation_fixture import capture_filestation, validate_filestation_dump
 from .incident import DEFAULT_MAX_ITEMS, response_plan, scan_ransomware_artifacts
 from .parsers import merge_storage, parse_network, parse_storage, parse_system
 from .redaction import redact_xml
-from .ssh_backend import disk_topology, raid_status, service_status, smart_attributes, tailscale_status
+from .security import assess_plex2shell
+from .ssh_backend import disk_topology, plex_known_process_iocs, plex_qpkg_info, raid_status, service_status, smart_attributes, tailscale_status
 
 
 SYSINFO_PATH = "/cgi-bin/management/manaRequest.cgi"
@@ -212,6 +213,21 @@ def disks_ssh(config: Config) -> Dict[str, Any]:
 
 def services(config: Config) -> Dict[str, Any]:
     return service_status(config)
+
+
+def plex2shell_audit(
+    config: Config,
+    exposure_during_vulnerable_version: Any = None,
+    current_exposure: Any = None,
+    indicators: Any = None,
+    check_known_process_iocs: bool = False,
+) -> Dict[str, Any]:
+    """Assess Plex patch posture using only fixed, read-only QPKG probes."""
+    if type(check_known_process_iocs) is not bool:
+        raise QtsError("check_known_process_iocs must be boolean")
+    package = plex_qpkg_info(config)
+    runtime_iocs = plex_known_process_iocs(config) if check_known_process_iocs else None
+    return assess_plex2shell(package, exposure_during_vulnerable_version, current_exposure, indicators, runtime_iocs)
 
 
 def incident_report(client: QtsClient, config: Config, max_items: int = DEFAULT_MAX_ITEMS) -> Dict[str, Any]:

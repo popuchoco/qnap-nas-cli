@@ -7,6 +7,7 @@ from pathlib import Path
 from qnap_nas_cli.commands import health, incident_report, storage
 from qnap_nas_cli.config import Config
 from qnap_nas_cli.mcp import TOOLS, handle_line, response
+from qnap_nas_cli.security import assess_plex2shell
 from qnap_nas_cli.ssh_backend import parse_mdstat
 from schema_lite import validate
 
@@ -46,12 +47,18 @@ class ObservationContractTest(unittest.TestCase):
         cls.storage_schema = load_schema("observation-storage.schema.json")
         cls.raid_schema = load_schema("observation-raid.schema.json")
         cls.incident_schema = load_schema("observation-incident.schema.json")
+        cls.plex_security_schema = load_schema("observation-security-plex2shell.schema.json")
         client = SampleClient()
         cls.health_sample = health(client)
         cls.storage_sample = storage(client)
         mdstat = (FIXTURE_DIR / "mdstat.txt").read_text(encoding="utf-8")
         cls.raid_sample = parse_mdstat(mdstat)
         cls.incident_sample = incident_report(client, Config("https://nas.example", "ops"))
+        cls.plex_security_sample = assess_plex2shell({
+            "package": "PlexMediaServer", "installed": True, "version": "1.43.3",
+            "qpkg_status": "complete", "enabled": True, "data_status": "version_available",
+            "version_source": "QPKG metadata (/etc/config/qpkg.conf)", "runtime_health": "unknown",
+        })
 
     def assert_valid(self, instance, schema):
         self.assertEqual(validate(instance, schema), [])
@@ -63,7 +70,18 @@ class ObservationContractTest(unittest.TestCase):
         self.assert_valid(self.raid_sample, self.raid_schema)
         self.assert_valid(self.incident_sample, self.incident_schema)
         self.assert_valid(self.incident_sample["observations"]["health"], self.health_schema)
+        self.assert_valid(self.plex_security_sample, self.plex_security_schema)
+        self.assertEqual(self.plex_security_sample["runtime_ioc_probes"]["status"], "not_requested")
         self.assertEqual(self.incident_sample["assessment"], "indeterminate")
+
+    def test_plex_security_schema_and_mcp_contract(self):
+        tool = next(tool for tool in TOOLS if tool["name"] == "qts_plex_security")
+        self.assertEqual(tool["inputSchema"]["properties"]["current_exposure"]["enum"], ["yes", "no"])
+        self.assertEqual(tool["inputSchema"]["properties"]["ioc_malware_remover_detection"]["enum"], ["yes", "no"])
+        self.assertEqual(tool["inputSchema"]["properties"]["check_known_process_iocs"]["type"], "boolean")
+        broken = copy.deepcopy(self.plex_security_sample)
+        broken["assessment"] = "clean"
+        self.assertTrue(validate(broken, self.plex_security_schema))
 
     def test_broken_health_shapes_fail_validation(self):
         missing_unknowns = copy.deepcopy(self.health_sample)

@@ -30,6 +30,10 @@ Volume queries use `extra_get` with `extra_vol_index=1` by default; CLI/MCP can 
 
 The reviewed TS-431K fixture comes from QTS 5.2.8 build 20251216. The firmware reports the internal model alias `TS-X41`; compatibility must not rely only on the retail model string.
 
+## Plex2Shell posture audit
+
+`qts security audit plex2shell` and MCP `qts_plex_security` collect fixed `getcfg` reads for the `PlexMediaServer` QPKG and compare version metadata with a documented patched baseline. Optional exposure and QNAP-listed IOC fields (unknown Plex processes, unfamiliar Codecs files, `proxystream.st`, sustained idle CPU, Malware Remover detections) are operator-reported. The explicit `--check-known-process-iocs` option probes only three exact names via fixed `pidof` argv; it does not capture a process table or command line. A reported indicator or exact-name match yields `suspected`, not a confirmed incident. The observation preserves unknown exposure/indicator fields, is not a full compromise assessment or clean bill of health, and never stops Plex, alters firewall/remote access, uninstalls, or cleans files. This process probe still requires live QTS compatibility validation. See [PLEX2SHELL.md](PLEX2SHELL.md) for scope and response workflow.
+
 Interactive CLI authentication prompts for a TOTP only after QTS reports that the password phase requires 2FA. Non-interactive CLI and MCP never prompt inside their protocols and require the short-lived `QTS_SECURITY_CODE` environment variable.
 
 ## Mutation gate

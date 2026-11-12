@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QNAP Plex2Shell read-only patch posture observation",
+  "description": "QPKG version assessment plus optional operator-reported exposure; not a compromise verdict or malware scan.",
+  "type": "object",
+  "required": ["report_type", "format_version", "checked_at", "rule_id", "assessment", "patch_status", "package", "exposure", "ioc_observations", "runtime_ioc_probes", "findings", "unknowns", "recommended_actions", "references", "automation_supported", "scope"],
+  "properties": {
+    "report_type": {"type": "string", "enum": ["qnap_plex2shell_posture"]},
+    "format_version": {"type": "integer", "enum": [1]},
+    "checked_at": {"type": "string"},
+    "rule_id": {"type": "string", "enum": ["plex2shell-qnap-2026-11"]},
+    "assessment": {"type": "string", "enum": ["not_installed", "vulnerable", "vulnerable_exposed", "potentially_compromised", "suspected", "patched", "patched_but_exposed", "indeterminate"]},
+    "patch_status": {"type": "string", "enum": ["patched", "vulnerable", "unknown"]},
+    "package": {
+      "type": "object",
+      "required": ["package", "installed", "version", "qpkg_status", "enabled", "data_status", "version_source", "runtime_health"],
+      "properties": {
+        "package": {"type": "string", "enum": ["PlexMediaServer"]},
+        "installed": {"type": "boolean"},
+        "version": {"type": ["string", "null"]},
+        "qpkg_status": {"type": ["string", "null"]},
+        "enabled": {"type": ["boolean", "null"]},
+        "data_status": {"type": "string"},
+        "version_source": {"type": "string"},
+        "runtime_health": {"type": "string", "enum": ["unknown"]}
+      },
+      "additionalProperties": true
+    },
+    "exposure": {
+      "type": "object",
+      "required": ["current", "during_vulnerable_version", "source"],
+      "properties": {
+        "current": {"type": "string", "enum": ["yes", "no", "unknown"]},
+        "during_vulnerable_version": {"type": "string", "enum": ["yes", "no", "unknown"]},
+        "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}
+      },
+      "additionalProperties": true
+    },
+    "ioc_observations": {
+      "type": "object",
+      "required": ["unknown_plex_process", "unfamiliar_codecs_files", "proxystream_st_connection", "sustained_idle_cpu", "malware_remover_detection"],
+      "properties": {
+        "unknown_plex_process": {"type": "object", "required": ["value", "source"], "properties": {"value": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false},
+        "unfamiliar_codecs_files": {"type": "object", "required": ["value", "source"], "properties": {"value": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false},
+        "proxystream_st_connection": {"type": "object", "required": ["value", "source"], "properties": {"value": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false},
+        "sustained_idle_cpu": {"type": "object", "required": ["value", "source"], "properties": {"value": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false},
+        "malware_remover_detection": {"type": "object", "required": ["value", "source"], "properties": {"value": {"type": "string", "enum": ["yes", "no", "unknown"]}, "source": {"type": "string", "enum": ["operator_reported", "not_collected"]}}, "additionalProperties": false}
+      },
+      "additionalProperties": false
+    },
+    "runtime_ioc_probes": {
+      "type": "object",
+      "required": ["status", "scope", "results"],
+      "properties": {
+        "status": {"type": "string", "enum": ["not_requested", "exact_names_checked", "partial"]},
+        "scope": {"type": "string"},
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "status", "match_count"],
+            "properties": {
+              "name": {"type": "string", "enum": ["myawesomeproxy", "mylovelyminer", "x12345"]},
+              "status": {"type": "string", "enum": ["not_requested", "found", "not_found", "unavailable", "not_attempted"]},
+              "match_count": {"type": ["integer", "null"]}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "findings": {"type": "array", "items": {"type": "object", "required": ["severity", "code", "message"], "properties": {"severity": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "unknowns": {"type": "array", "items": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}, "additionalProperties": true}},
+    "recommended_actions": {"type": "array", "items": {"type": "string"}},
+    "references": {"type": "array", "items": {"type": "string"}},
+    "automation_supported": {"type": "boolean", "enum": [false]},
+    "scope": {"type": "string"}
+  },
+  "additionalProperties": true
+}

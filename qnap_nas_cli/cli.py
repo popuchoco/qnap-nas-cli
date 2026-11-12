@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from . import __version__
 from .client import QtsClient
-from .commands import disks_ssh, dump, health, incident_report, network, raid, services, smart_details, storage, sysinfo, tailscale, validate_dump
+from .commands import disks_ssh, dump, health, incident_report, network, plex2shell_audit, raid, services, smart_details, storage, sysinfo, tailscale, validate_dump
 from .config import Config, default_config_path, load_config, password_from_environment, save_config
 from .errors import QtsError, TwoFactorRequired
 from .mcp import serve
@@ -16,6 +16,7 @@ from .incident import DEFAULT_MAX_ITEMS, MAX_MAX_ITEMS, response_plan, write_evi
 from .evidence_capsule import DEFAULT_MAX_BYTES, validate_attachments
 from .health_report import write_health_report
 from .remediation import apply_plan, unavailable_plan
+from .security import IOC_FIELDS
 from .webhook import maybe_notify_health, maybe_notify_incident, webhook_enabled
 
 
@@ -92,6 +93,18 @@ def parser() -> argparse.ArgumentParser:
     repair_apply = repair_subs.add_parser("apply", help="驗證 plan 與確認碼；未註冊的 mutation adapter 一律拒絕")
     repair_apply.add_argument("plan_file", type=Path)
     repair_apply.add_argument("--confirm", required=True, help="逐字輸入 plan_id；拒絕未驗證操作")
+    security_parser = subs.add_parser("security", help="Read-only security posture audits")
+    security_subs = security_parser.add_subparsers(dest="security_command", required=True)
+    audit_parser = security_subs.add_parser("audit", help="Run a read-only security posture audit")
+    audit_subs = audit_parser.add_subparsers(dest="audit_command", required=True)
+    plex_audit = audit_subs.add_parser("plex2shell", help="Assess Plex2Shell patch posture; no runtime scan or NAS changes")
+    plex_audit.add_argument("--exposure-during-vulnerable-version", choices=["yes", "no"], help="Operator-reported historical external exposure")
+    plex_audit.add_argument("--current-exposure", choices=["yes", "no"], help="Operator-reported current external exposure")
+    plex_audit.add_argument("--check-known-process-iocs", action="store_true", help="Opt in to fixed, read-only pidof checks for three QNAP-listed names")
+    for indicator_name, description in IOC_FIELDS.items():
+        option = "--ioc-{}".format(indicator_name.replace("_", "-"))
+        plex_audit.add_argument(option, dest="ioc_" + indicator_name, choices=["yes", "no"], help="Operator-reported: {}".format(description))
+
     nested_parsers = (incident_scan, incident_contain, incident_evidence, incident_rescue, repair_plan, repair_apply, report_health)
     for command_parser in nested_parsers:
         command_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -100,6 +113,9 @@ def parser() -> argparse.ArgumentParser:
         command_webhook_flags = command_parser.add_mutually_exclusive_group()
         command_webhook_flags.add_argument("--webhook", dest="webhook", action="store_true", default=argparse.SUPPRESS, help="強制啟用符合條件的 webhook 通知")
         command_webhook_flags.add_argument("--no-webhook", dest="webhook", action="store_false", default=argparse.SUPPRESS, help="停用 webhook 通知")
+    plex_audit.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    plex_audit.add_argument("--insecure", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    plex_audit.add_argument("--config", type=Path, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     seen = set()
     for command_parser in subs.choices.values():
         if id(command_parser) in seen:
@@ -373,6 +389,16 @@ def main(argv: Optional[list] = None) -> int:
                 "services": lambda: services(config),
             }
             _print(ssh_operations[args.command](), args.json)
+            return 0
+        if args.command == "security" and args.security_command == "audit" and args.audit_command == "plex2shell":
+            value = plex2shell_audit(
+                config,
+                args.exposure_during_vulnerable_version,
+                args.current_exposure,
+                {name: getattr(args, "ioc_" + name) for name in IOC_FIELDS if getattr(args, "ioc_" + name) is not None},
+                args.check_known_process_iocs,
+            )
+            _print(value, args.json)
             return 0
         operations = {
             "status": sysinfo,
