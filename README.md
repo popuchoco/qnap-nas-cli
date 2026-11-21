@@ -60,7 +60,7 @@ Evidence capsule 僅是本機有限摘要，不是完整取證；不保證涵蓋
 
 ## 安裝
 
-需求為 Python 3.8 以上，執行時不需要第三方套件。套件已發布到 PyPI；pipx、venv/pip、Git checkout 與離線 wheel 的安裝方式見[安裝指南](docs/INSTALL.md)。
+需求為 Python 3.8 以上，執行時不需要第三方套件。PyPI 提供 `py3-none-any` 通用 wheel，可用於 Windows、macOS Intel／Apple silicon 與 Linux；目前不提供獨立 `.exe`／`.dmg`。pipx、PowerShell、macOS、venv/pip、Git checkout 與離線 wheel 的安裝方式見[安裝指南](docs/INSTALL.md)。
 
 ```bash
 pipx install qnap-nas-cli
@@ -278,7 +278,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q qnap_nas_cli
 ```
 
-CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行離線測試與 wheel 建置，並在 Windows 2022 上跑 atomic report/evidence writer 測試。固定 Linux runner 的理由是 Ubuntu 26 已無 Python 3.8 toolcache。Live smoke test 不會在公開 CI 使用真實 NAS credential。
+CI 在 Ubuntu 22.04 上以 Python 3.8、3.12 與 3.13 執行測試，並在 Windows Server 2022、macOS 15 Apple silicon 與 Intel 上執行完整測試、建置／安裝通用 wheel 及 `qts` CLI smoke test。正式 release 發布前，也會在上述三種平台安裝同一個 release wheel。固定 Linux runner 的理由是 Ubuntu 26 已無 Python 3.8 toolcache。Live smoke test 不會在公開 CI 使用真實 NAS credential。
 
 ## Roadmap
 

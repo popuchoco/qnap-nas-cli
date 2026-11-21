@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix Windows evidence capsule CI path comparison to compare filesystem identity rather than short/long path spelling. Test the full suite and install/smoke-test the universal wheel on Windows, macOS Apple silicon, and macOS Intel; require all three platforms to pass the release wheel before PyPI/GitHub publication.
+- Document that the `py3-none-any` wheel already supports Windows and macOS, add native PowerShell/macOS installation and offline-wheel steps, and explicitly defer unsigned standalone `.exe`/`.dmg` packages.
 - Fix redacted security report bundles so schema-owned report/rule IDs and bounded four-component version/build fields survive redaction; add an end-to-end assessment → bundle → schema validation regression test.
 - Stop legacy QPKG collection at the first SSH/configuration failure, retain a fixed `collection_errors` code and explicit unknown posture, publish the report, then return exit 2 so schedulers cannot mistake an incomplete collection for success. Apply the same structured failure contract to Plex and make SSH identity-file use explicit with `IdentitiesOnly=yes`.
 - Sort webhook findings by severity before item/body truncation; a critical/high advisory finding can no longer be displaced by earlier low-severity QSnatch checklist entries. Photo Station exposure remains a high finding without being mislabeled as `suspected`, while still triggering an alert.

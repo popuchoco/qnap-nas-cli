@@ -2,6 +2,8 @@
 
 套件名稱是 `qnap-nas-cli`，命令列入口是 `qts`，需要 Python 3.8 以上。最新已發布版本為 `0.4.0`；執行時只使用 Python 標準函式庫。`main` 上標示為未發布的 security audit/report 子命令不屬於 `0.4.0` 套件範圍。
 
+PyPI 發布的是 `py3-none-any` 通用 wheel 和 source archive，不是作業系統專屬套件。相同 wheel 可安裝於 Windows、macOS Intel、macOS Apple silicon 及 Linux；使用者須安裝 Python 3.8+。專案目前不發布 `.exe`、`.msi`、`.dmg` 或未簽署／未 notarize 的獨立執行檔。
+
 ## 從 PyPI 安裝（建議）
 
 使用 pipx 將 CLI 安裝在獨立環境：
@@ -12,7 +14,50 @@ qts --help
 qts --version
 ```
 
-也可先建立虛擬環境，再用 pip 安裝：
+### Windows PowerShell
+
+安裝 Python 3.8+ 後，建議用 `pipx` 隔離安裝 CLI。安裝 `pipx` 本身需要 Python 3.11+，Python Launcher 可用時：
+
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath
+```
+
+重新開啟 PowerShell，再執行：
+
+```powershell
+pipx install qnap-nas-cli
+qts --help
+qts --version
+```
+
+若未安裝 Python Launcher，將上述 `py` 換成 `python`。也可以使用虛擬環境：
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install qnap-nas-cli
+qts --help
+```
+
+### macOS
+
+Apple silicon 與 Intel macOS 使用相同的通用 wheel。先安裝 Python 3.8+ 與 Homebrew，再用 Homebrew 安裝 `pipx`：
+
+```bash
+brew install pipx
+pipx ensurepath
+```
+
+重新開啟 Terminal 後：
+
+```bash
+pipx install qnap-nas-cli
+qts --help
+qts --version
+```
+
+macOS/Linux 也可先建立虛擬環境，再用 pip 安裝：
 
 ```bash
 python3 -m venv .venv
@@ -58,7 +103,7 @@ python -m pip download --only-binary=:all: --no-deps qnap-nas-cli -d dist/
 python -m pip wheel . -w dist/
 ```
 
-若已安裝 `build` 工具，也可執行 `python -m build --wheel --outdir dist/`。將產生的 `qnap_nas_cli-0.4.0-py3-none-any.whl` 複製到離線主機。在離線主機上，`DIR` 請換成 wheel 所在目錄：
+若已安裝 `build` 工具，也可執行 `python -m build --wheel --outdir dist/`。將產生的 `qnap_nas_cli-0.4.0-py3-none-any.whl` 複製到 macOS/Linux 離線主機。在離線主機上，`DIR` 請換成 wheel 所在目錄：
 
 ```bash
 python3 -m venv .venv
@@ -68,6 +113,14 @@ python3 -m venv .venv
 ```
 
 若直接指定 wheel 路徑，也可執行 `.venv/bin/python -m pip install /path/to/qnap_nas_cli-0.4.0-py3-none-any.whl`。此套件沒有第三方 runtime dependencies。
+
+Windows 離線安裝使用虛擬環境的 Windows 目錄及 `Scripts` 入口：
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --no-index --find-links=DIR qnap-nas-cli
+.\.venv\Scripts\qts.exe --help
+```
 
 ## 憑證與設定
 

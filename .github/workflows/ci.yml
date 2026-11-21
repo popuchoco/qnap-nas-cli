@@ -25,14 +25,31 @@ jobs:
       - run: python -m qnap_nas_cli --help
       - run: python -m pip wheel . --no-deps -w dist
 
-  windows-atomic-reports:
-    runs-on: windows-2022
+  cross-platform-package:
+    name: ${{ matrix.name }} package and tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-2022
+          - name: macOS Apple silicon
+            os: macos-15
+          - name: macOS Intel
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Test atomic report publication on Windows
-        run: python -m unittest discover -s tests -p "test_health_report.py" -v
-      - name: Test evidence capsule publication on Windows
-        run: python -m unittest discover -s tests -p "test_evidence_capsule.py" -v
+      - name: Run full test suite
+        run: python -m unittest discover -s tests -v
+      - name: Build universal wheel
+        run: python -m pip wheel . --no-deps -w dist
+      - name: Install built wheel
+        run: python -c "import glob, subprocess, sys; wheels=glob.glob('dist/*-py3-none-any.whl'); assert len(wheels)==1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', wheels[0]])"
+      - name: Smoke-test installed CLI
+        run: |
+          qts --version
+          qts --help

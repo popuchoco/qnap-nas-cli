@@ -42,8 +42,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish:
+  platform-smoke:
     needs: build
+    name: ${{ matrix.name }} release wheel smoke test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-2022
+          - name: macOS Apple silicon
+            os: macos-15
+          - name: macOS Intel
+            os: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+      - name: Install the release wheel
+        run: python -c "import glob, subprocess, sys; wheels=glob.glob('dist/*-py3-none-any.whl'); assert len(wheels)==1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', wheels[0]])"
+      - name: Smoke-test installed CLI
+        run: |
+          qts --version
+          qts --help
+
+  publish:
+    needs: [build, platform-smoke]
     runs-on: ubuntu-22.04
     environment:
       name: pypi

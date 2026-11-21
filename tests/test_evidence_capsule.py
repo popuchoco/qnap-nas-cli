@@ -69,7 +69,10 @@ class EvidenceCapsuleWriterTest(unittest.TestCase):
             self.assertTrue(target.is_dir())
             self.assertEqual(receipt["format_version"], 2)
             self.assertEqual(receipt["emitted_at"], "2026-11-06T01:02:03Z")
-            self.assertEqual(receipt["directory"], str(target))
+            # Windows may expose the same temporary directory through its
+            # short (8.3) and long path forms; compare the filesystem object,
+            # not its spelling.
+            self.assertTrue(os.path.samefile(receipt["directory"], target))
             self.assertEqual({path.name for path in target.iterdir()}, {"incident.json", "summary.md", "manifest.json"})
 
             saved = json.loads((target / "incident.json").read_text(encoding="utf-8"))
