@@ -264,7 +264,23 @@ def _doctor(config: Config, config_path: Optional[Path] = None) -> Dict[str, Any
     }
 
 
+def _configure_windows_console() -> None:
+    """Keep Unicode CLI output from crashing under legacy Windows code pages."""
+    if os.name != "nt":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            # Embedded or already-closed streams may not support reconfigure.
+            pass
+
+
 def main(argv: Optional[list] = None) -> int:
+    _configure_windows_console()
     args = parser().parse_args(argv)
     try:
         if args.command == "setup":

@@ -3,16 +3,26 @@ import io
 import json
 import sys
 import tempfile
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from pathlib import Path
 
-from qnap_nas_cli.cli import _doctor, main, parser
+from qnap_nas_cli.cli import _configure_windows_console, _doctor, main, parser
 from qnap_nas_cli.config import Config
 from qnap_nas_cli.remediation import unavailable_plan
 
 
 class CliTest(unittest.TestCase):
+    def test_windows_console_streams_are_configured_for_utf8(self):
+        stdout = Mock()
+        stderr = Mock()
+        with patch("qnap_nas_cli.cli.os.name", "nt"), \
+                patch("qnap_nas_cli.cli.sys.stdout", stdout), \
+                patch("qnap_nas_cli.cli.sys.stderr", stderr):
+            _configure_windows_console()
+        stdout.reconfigure.assert_called_once_with(encoding="utf-8", errors="backslashreplace")
+        stderr.reconfigure.assert_called_once_with(encoding="utf-8", errors="backslashreplace")
+
     def test_global_flags_before_command(self):
         args = parser().parse_args(["--json", "status"])
         self.assertTrue(args.json)
